@@ -71,7 +71,7 @@ export async function robotRoutes(app: FastifyInstance) {
         const version = String((parseInt(last?.version ?? '0') + 1));
 
         await db.deviceConfig.create({
-            data: { deviceId, version, config: req.body },
+            data: { deviceId, version, config: req.body as Record<string, string | number | boolean | null> },
         });
 
         publishToRobot(deviceId, 'config', { ...req.body, version }, 1);
