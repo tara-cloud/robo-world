@@ -199,13 +199,16 @@ void tlog(const String& msg) {
 void setupDeviceHardware() {
     Wire.begin(I2C_SDA, I2C_SCL);
 
-    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-        Serial.println("[Robot] OLED init failed");
+    // Try 0x3C first, fall back to 0x3D
+    bool ok = display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+    if (!ok) ok = display.begin(SSD1306_SWITCHCAPVCC, 0x3D);
+    if (!ok) {
+        Serial.println("[Robot] OLED not found");
         return;
     }
     display.ssd1306_command(SSD1306_SETCONTRAST);
     display.ssd1306_command((uint8_t)map(displayBrightness, 0, 100, 0, 255));
-    redrawBootScreen(); // show logo immediately on boot
+    redrawBootScreen();
     Serial.println("[Robot] Hardware ready");
 }
 

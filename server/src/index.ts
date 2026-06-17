@@ -14,7 +14,7 @@ app.register(cors, { origin: true });
 
 // Serve the dashboard UI from /public
 app.register(staticFiles, {
-    root:   path.join(__dirname, '..', '..', 'public'),
+    root:   path.join(__dirname, '..', 'public'),
     prefix: '/',
 });
 
