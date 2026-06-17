@@ -16,7 +16,7 @@ export async function sensorRoutes(app: FastifyInstance) {
                 temperature,
                 humidity,
                 light,
-                extra: Object.keys(extra).length ? extra : undefined,
+                extra: Object.keys(extra).length ? (extra as object) : undefined,
             },
         });
 

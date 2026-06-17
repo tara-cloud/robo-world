@@ -203,7 +203,8 @@ void setupDeviceHardware() {
         Serial.println("[Robot] OLED init failed");
         return;
     }
-    display.setContrast(map(displayBrightness, 0, 100, 0, 255));
+    display.ssd1306_command(SSD1306_SETCONTRAST);
+    display.ssd1306_command((uint8_t)map(displayBrightness, 0, 100, 0, 255));
     redrawBootScreen(); // show logo immediately on boot
     Serial.println("[Robot] Hardware ready");
 }
@@ -248,7 +249,8 @@ void applyRobotConfig(const JsonDocument& doc) {
     displayBrightness = doc["displayBrightness"] | displayBrightness;
     volume            = doc["volume"]            | volume;
     idleTimeout       = doc["idleTimeout"]       | idleTimeout;
-    display.setContrast(map(displayBrightness, 0, 100, 0, 255));
+    display.ssd1306_command(SSD1306_SETCONTRAST);
+    display.ssd1306_command((uint8_t)map(displayBrightness, 0, 100, 0, 255));
 }
 
 void handleDisplay(const String& json) {

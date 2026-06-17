@@ -49,7 +49,7 @@ export async function configRoutes(app: FastifyInstance) {
         const nextVersion = String((parseInt(last?.version ?? '0') + 1));
 
         const saved = await db.deviceConfig.create({
-            data: { deviceId, version: nextVersion, config },
+            data: { deviceId, version: nextVersion, config: config as object },
         });
 
         return reply.code(201).send({ version: saved.version });

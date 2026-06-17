@@ -1,5 +1,5 @@
 import mqtt, { MqttClient } from 'mqtt';
-import { db } from '../db';
+import { db } from './db';
 
 let client: MqttClient | null = null;
 
