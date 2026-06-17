@@ -5,7 +5,8 @@ import path from 'path';
 import { deviceRoutes } from './routes/device';
 import { configRoutes } from './routes/config';
 import { sensorRoutes } from './routes/sensor';
-import { robotRoutes }  from './routes/robot';
+import { robotRoutes }    from './routes/robot';
+import { hardwareRoutes } from './routes/hardware';
 import { initMqtt } from './mqtt';
 
 const app = Fastify({ logger: true });
@@ -21,7 +22,8 @@ app.register(staticFiles, {
 app.register(deviceRoutes, { prefix: '/device' });
 app.register(configRoutes, { prefix: '/device' });
 app.register(sensorRoutes, { prefix: '/device' });
-app.register(robotRoutes,  { prefix: '/robot' });
+app.register(robotRoutes,    { prefix: '/robot' });
+app.register(hardwareRoutes, { prefix: '/robot' });
 
 app.get('/health', async () => ({ status: 'ok' }));
 

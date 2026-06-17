@@ -21,6 +21,8 @@ model Device {
 
   configs   DeviceConfig[]
   readings  SensorReading[]
+  pins      DevicePin[]
+  pipeline  PipelineRule[]
 }
 
 model DeviceConfig {
@@ -43,4 +45,29 @@ model SensorReading {
   light       Int?
   extra       Json?
   recordedAt  DateTime @default(now())
+}
+
+model DevicePin {
+  id        String  @id @default(cuid())
+  device    Device  @relation(fields: [deviceId], references: [deviceId])
+  deviceId  String
+  pin       String  // GPIO number or label like "3V3", "GND"
+  label     String  // e.g. "SDA", "SOIL_MOISTURE", "PUMP"
+  direction String  // "input" | "output" | "power" | "i2c"
+  component String  // e.g. "SH1106 OLED", "DHT11"
+  protocol  String? // "I2C" | "DIGITAL" | "ANALOG" | "PWM"
+  notes     String?
+
+  @@unique([deviceId, pin])
+}
+
+model PipelineRule {
+  id        String   @id @default(cuid())
+  device    Device   @relation(fields: [deviceId], references: [deviceId])
+  deviceId  String
+  pinLabel  String   // matches DevicePin.label
+  action    String   // "log" | "threshold" | "mqtt_publish" | "actuator"
+  config    Json     // action-specific config
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
 }

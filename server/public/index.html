@@ -8,187 +8,152 @@
     :root {
       --bg:      #0f1117;
       --surface: #1a1d27;
+      --surface2:#1f2235;
       --border:  #2a2d3a;
       --accent:  #6c63ff;
       --green:   #22c55e;
       --yellow:  #eab308;
       --red:     #ef4444;
+      --blue:    #3b82f6;
+      --orange:  #f97316;
+      --purple:  #a855f7;
       --text:    #e2e8f0;
       --muted:   #64748b;
-      --radius:  10px;
+      --radius:  8px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-    }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
-    /* ── Header ─────────────────────────────────────────── */
-    header {
-      display: flex; align-items: center; gap: 12px;
-      padding: 16px 24px;
-      border-bottom: 1px solid var(--border);
-    }
-    header h1 { font-size: 1.2rem; font-weight: 600; }
-    header .logo { font-size: 1.5rem; }
-    .refresh-btn {
-      margin-left: auto;
-      background: var(--accent); color: #fff;
-      border: none; border-radius: var(--radius);
-      padding: 8px 16px; cursor: pointer; font-size: .85rem;
-    }
-    .refresh-btn:hover { opacity: .85; }
+    /* Header */
+    header { display:flex; align-items:center; gap:12px; padding:14px 20px; border-bottom:1px solid var(--border); }
+    header h1 { font-size:1.1rem; font-weight:600; }
+    .hdr-right { margin-left:auto; display:flex; gap:8px; }
+    .btn { padding:7px 14px; border:none; border-radius:var(--radius); cursor:pointer; font-size:.82rem; font-weight:600; }
+    .btn-primary { background:var(--accent); color:#fff; }
+    .btn-ghost   { background:transparent; border:1px solid var(--border); color:var(--text); }
+    .btn-danger  { background:transparent; border:1px solid var(--red); color:var(--red); }
+    .btn:hover   { opacity:.85; }
+    .btn-sm      { padding:4px 10px; font-size:.75rem; }
 
-    /* ── Layout ─────────────────────────────────────────── */
-    main {
-      display: grid;
-      grid-template-columns: 300px 1fr;
-      gap: 0;
-      height: calc(100vh - 57px);
-    }
+    /* Layout */
+    main { display:grid; grid-template-columns:280px 1fr; height:calc(100vh - 53px); }
 
-    /* ── Device list ────────────────────────────────────── */
-    #device-list {
-      border-right: 1px solid var(--border);
-      overflow-y: auto;
-      padding: 16px;
-    }
-    #device-list h2 { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; }
-    .device-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 12px 14px;
-      margin-bottom: 10px;
-      cursor: pointer;
-      transition: border-color .15s;
-    }
-    .device-card:hover  { border-color: var(--accent); }
-    .device-card.active { border-color: var(--accent); background: #1e1b4b22; }
-    .device-card .name  { font-weight: 600; font-size: .95rem; }
-    .device-card .id    { font-size: .72rem; color: var(--muted); margin-top: 2px; font-family: monospace; }
-    .device-card .meta  { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
-    .badge {
-      font-size: .68rem; padding: 2px 8px; border-radius: 999px; font-weight: 600;
-    }
-    .badge.online  { background: #166534; color: #bbf7d0; }
-    .badge.offline { background: #7f1d1d; color: #fecaca; }
-    .fw { font-size: .72rem; color: var(--muted); }
+    /* Sidebar */
+    aside { border-right:1px solid var(--border); overflow-y:auto; padding:14px; }
+    aside h2 { font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:10px; }
+    .device-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; margin-bottom:8px; cursor:pointer; transition:border-color .15s; }
+    .device-card:hover, .device-card.active { border-color:var(--accent); }
+    .device-card .name { font-weight:600; font-size:.9rem; }
+    .device-card .id   { font-size:.7rem; color:var(--muted); font-family:monospace; margin-top:2px; }
+    .device-card .meta { display:flex; gap:8px; margin-top:6px; align-items:center; }
+    .badge { font-size:.65rem; padding:2px 8px; border-radius:999px; font-weight:600; }
+    .badge.online  { background:#166534; color:#bbf7d0; }
+    .badge.offline { background:#7f1d1d; color:#fecaca; }
+    .badge.input   { background:#1e3a5f; color:#93c5fd; }
+    .badge.output  { background:#431407; color:#fdba74; }
+    .badge.i2c     { background:#3b0764; color:#d8b4fe; }
+    .badge.power   { background:#422006; color:#fde68a; }
+    .fw { font-size:.7rem; color:var(--muted); }
 
-    /* ── Detail panel ───────────────────────────────────── */
-    #detail {
-      overflow-y: auto;
-      padding: 24px;
-      display: flex; flex-direction: column; gap: 20px;
-    }
-    #detail.empty {
-      align-items: center; justify-content: center;
-    }
-    .empty-msg { color: var(--muted); font-size: .9rem; }
+    /* Detail panel */
+    #detail { overflow-y:auto; display:flex; flex-direction:column; }
+    #detail.empty { align-items:center; justify-content:center; }
+    .empty-msg { color:var(--muted); font-size:.9rem; }
 
-    /* ── Cards ──────────────────────────────────────────── */
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-    }
-    .card h3 {
-      font-size: .8rem; color: var(--muted);
-      text-transform: uppercase; letter-spacing: .08em;
-      margin-bottom: 16px;
-    }
+    /* Tabs */
+    .tabs { display:flex; border-bottom:1px solid var(--border); padding:0 20px; background:var(--surface); position:sticky; top:0; z-index:10; }
+    .tab  { padding:12px 16px; font-size:.82rem; cursor:pointer; border-bottom:2px solid transparent; color:var(--muted); transition:all .15s; white-space:nowrap; }
+    .tab:hover   { color:var(--text); }
+    .tab.active  { color:var(--accent); border-bottom-color:var(--accent); }
+    .tab-content { display:none; padding:20px; flex-direction:column; gap:16px; }
+    .tab-content.active { display:flex; }
+
+    /* Cards */
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px; }
+    .card h3 { font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:14px; }
 
     /* Health grid */
-    .health-grid {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
-    }
-    .stat { text-align: center; }
-    .stat .val { font-size: 1.6rem; font-weight: 700; }
-    .stat .lbl { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+    .health-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+    .stat { text-align:center; }
+    .stat .val { font-size:1.4rem; font-weight:700; }
+    .stat .lbl { font-size:.7rem; color:var(--muted); margin-top:2px; }
 
-    /* Config editor */
-    textarea {
-      width: 100%; height: 200px;
-      background: #0f1117; color: var(--text);
-      border: 1px solid var(--border); border-radius: 6px;
-      padding: 10px; font-family: 'Courier New', monospace; font-size: .83rem;
-      resize: vertical;
-    }
-    textarea:focus { outline: none; border-color: var(--accent); }
-    .btn-row { display: flex; gap: 10px; margin-top: 12px; }
-    .btn {
-      padding: 8px 18px; border: none; border-radius: var(--radius);
-      cursor: pointer; font-size: .85rem; font-weight: 600;
-    }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-ghost   { background: transparent; border: 1px solid var(--border); color: var(--text); }
-    .btn:hover   { opacity: .85; }
+    /* Tables */
+    table { width:100%; border-collapse:collapse; font-size:.82rem; }
+    th, td { padding:8px 10px; border-bottom:1px solid var(--border); text-align:left; vertical-align:middle; }
+    th { color:var(--muted); font-weight:500; font-size:.75rem; text-transform:uppercase; letter-spacing:.05em; }
+    tr:last-child td { border-bottom:none; }
+    tr.adding td { background:var(--surface2); }
 
-    /* Control buttons */
-    .face-grid {
-      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    /* Inputs */
+    input[type=text], input[type=number], select, textarea {
+      background:var(--bg); color:var(--text); border:1px solid var(--border);
+      border-radius:6px; padding:6px 10px; font-size:.82rem; width:100%;
     }
-    .face-btn {
-      padding: 8px 4px; background: var(--bg);
-      border: 1px solid var(--border); border-radius: 6px;
-      color: var(--text); cursor: pointer; font-size: .8rem; text-align: center;
-    }
-    .face-btn:hover { border-color: var(--accent); color: var(--accent); }
+    input:focus, select:focus, textarea:focus { outline:none; border-color:var(--accent); }
+    textarea { height:180px; font-family:monospace; resize:vertical; }
+    select option { background:var(--surface); }
 
-    .speech-row { display: flex; gap: 8px; }
-    .speech-row input {
-      flex: 1; background: #0f1117; color: var(--text);
-      border: 1px solid var(--border); border-radius: 6px;
-      padding: 8px 12px; font-size: .85rem;
-    }
-    .speech-row input:focus { outline: none; border-color: var(--accent); }
+    /* Pipeline form */
+    .pipeline-form { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:16px; display:flex; flex-direction:column; gap:10px; }
+    .pipeline-form .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .pipeline-form label { font-size:.75rem; color:var(--muted); display:block; margin-bottom:4px; }
+    .threshold-fields { display:grid; grid-template-columns:1fr 80px 1fr; gap:8px; }
+
+    /* Face grid */
+    .face-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+    .face-btn { padding:8px; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:.78rem; text-align:center; }
+    .face-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+    .speech-row { display:flex; gap:8px; }
+    .speech-row input { flex:1; }
+
+    /* Toggle */
+    .toggle { position:relative; display:inline-block; width:36px; height:20px; }
+    .toggle input { opacity:0; width:0; height:0; }
+    .slider { position:absolute; inset:0; background:var(--border); border-radius:20px; cursor:pointer; transition:.2s; }
+    .slider:before { content:''; position:absolute; height:14px; width:14px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s; }
+    input:checked + .slider { background:var(--accent); }
+    input:checked + .slider:before { transform:translateX(16px); }
+
+    /* Live value pill */
+    .live-val { font-family:monospace; font-size:.75rem; background:var(--surface2); border:1px solid var(--border); border-radius:4px; padding:2px 6px; color:var(--green); }
 
     /* Toast */
-    #toast {
-      position: fixed; bottom: 24px; right: 24px;
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 10px 18px;
-      font-size: .85rem; opacity: 0; transition: opacity .2s;
-      pointer-events: none;
-    }
-    #toast.show { opacity: 1; }
-
-    /* Sensors table */
-    table { width: 100%; border-collapse: collapse; font-size: .82rem; }
-    th, td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: left; }
-    th { color: var(--muted); font-weight: 500; }
+    #toast { position:fixed; bottom:20px; right:20px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:9px 16px; font-size:.82rem; opacity:0; transition:opacity .2s; pointer-events:none; }
+    #toast.show { opacity:1; }
   </style>
 </head>
 <body>
 
 <header>
-  <span class="logo">🤖</span>
-  <h1>Electro — Tara Robot Dashboard</h1>
-  <button class="refresh-btn" onclick="loadDevices()">Refresh</button>
+  <span style="font-size:1.4rem">🤖</span>
+  <h1>Electro — Tara Robot</h1>
+  <div class="hdr-right">
+    <button class="btn btn-ghost" onclick="loadDevices()">Refresh</button>
+  </div>
 </header>
 
 <main>
-  <aside id="device-list">
-    <h2>Registered Devices</h2>
+  <aside>
+    <h2>Devices</h2>
     <div id="device-items">Loading…</div>
   </aside>
 
   <section id="detail" class="empty">
-    <p class="empty-msg">Select a device to view details</p>
+    <p class="empty-msg">Select a device</p>
   </section>
 </main>
 
 <div id="toast"></div>
 
 <script>
-const BASE = '';    // same origin
+const BASE = '';
 let selected = null;
 let devices  = [];
+let devicePins = [];
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────────
 function toast(msg, ok = true) {
   const el = document.getElementById('toast');
   el.textContent = msg;
@@ -196,7 +161,6 @@ function toast(msg, ok = true) {
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2500);
 }
-
 async function api(method, path, body) {
   const res = await fetch(BASE + path, {
     method,
@@ -206,162 +170,450 @@ async function api(method, path, body) {
   if (!res.ok) throw new Error(`${res.status}`);
   return res.json();
 }
-
-function isOnline(lastSeen) {
-  return Date.now() - new Date(lastSeen).getTime() < 90_000; // 90 s
-}
-
-// ── Device list ────────────────────────────────────────────────────────────
-async function loadDevices() {
-  devices = await api('GET', '/robot');
-  const el = document.getElementById('device-items');
-  if (!devices.length) { el.innerHTML = '<p style="color:var(--muted);font-size:.85rem">No devices registered yet.</p>'; return; }
-
-  el.innerHTML = devices.map(d => `
-    <div class="device-card ${selected === d.deviceId ? 'active' : ''}"
-         onclick="selectDevice('${d.deviceId}')">
-      <div class="name">${d.deviceName}</div>
-      <div class="id">${d.deviceId}</div>
-      <div class="meta">
-        <span class="badge ${isOnline(d.lastSeen) ? 'online' : 'offline'}">
-          ${isOnline(d.lastSeen) ? 'ONLINE' : 'OFFLINE'}
-        </span>
-        <span class="fw">v${d.firmwareVersion}</span>
-      </div>
-    </div>
-  `).join('');
-}
-
-// ── Detail view ────────────────────────────────────────────────────────────
-async function selectDevice(id) {
-  selected = id;
-  loadDevices(); // re-render list for active state
-
-  const detail = document.getElementById('detail');
-  detail.className = '';
-  detail.innerHTML = '<p style="color:var(--muted)">Loading…</p>';
-
-  const d = await api('GET', `/robot/${id}`);
-  const online = isOnline(d.lastSeen);
-  const lastReading = d.readings[0];
-
-  const latestConfig = d.configs[0]
-    ? JSON.stringify(d.configs[0].config, null, 2)
-    : JSON.stringify({ version: 1, displayBrightness: 80, volume: 70, idleTimeout: 300 }, null, 2);
-
-  detail.innerHTML = `
-    <!-- Health -->
-    <div class="card">
-      <h3>Health</h3>
-      <div class="health-grid">
-        <div class="stat">
-          <div class="val" style="color:${online ? 'var(--green)' : 'var(--red)'}">
-            ${online ? 'ONLINE' : 'OFFLINE'}
-          </div>
-          <div class="lbl">Status</div>
-        </div>
-        <div class="stat">
-          <div class="val">${d.firmwareVersion}</div>
-          <div class="lbl">Firmware</div>
-        </div>
-        <div class="stat">
-          <div class="val">${timeSince(d.lastSeen)}</div>
-          <div class="lbl">Last Seen</div>
-        </div>
-      </div>
-
-      ${lastReading ? `
-      <div style="margin-top:16px">
-        <table>
-          <thead><tr><th>Metric</th><th>Value</th><th>Recorded</th></tr></thead>
-          <tbody>
-            ${lastReading.temperature != null ? `<tr><td>Temperature</td><td>${lastReading.temperature} °C</td><td>${timeSince(lastReading.recordedAt)}</td></tr>` : ''}
-            ${lastReading.humidity    != null ? `<tr><td>Humidity</td><td>${lastReading.humidity} %</td><td>${timeSince(lastReading.recordedAt)}</td></tr>` : ''}
-            ${lastReading.light       != null ? `<tr><td>Light</td><td>${lastReading.light} %</td><td>${timeSince(lastReading.recordedAt)}</td></tr>` : ''}
-          </tbody>
-        </table>
-      </div>
-      ` : ''}
-    </div>
-
-    <!-- Controls -->
-    <div class="card">
-      <h3>Display</h3>
-      <div class="face-grid" id="faces"></div>
-    </div>
-
-    <div class="card">
-      <h3>Speech</h3>
-      <div class="speech-row">
-        <input id="speech-input" type="text" placeholder="Enter text for Tara to say…" />
-        <button class="btn btn-primary" onclick="sendSpeech('${d.deviceId}')">Say It</button>
-      </div>
-    </div>
-
-    <!-- Config editor -->
-    <div class="card">
-      <h3>Configuration</h3>
-      <textarea id="config-editor">${latestConfig}</textarea>
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="pushConfig('${d.deviceId}')">Push Config</button>
-        <button class="btn btn-ghost"   onclick="formatConfig()">Format JSON</button>
-      </div>
-    </div>
-  `;
-
-  // Render face buttons
-  const faces = ['idle','happy','sad','thinking','sleeping','listening','speaking','error'];
-  document.getElementById('faces').innerHTML = faces.map(f => `
-    <button class="face-btn" onclick="sendFace('${d.deviceId}','${f}')">${f}</button>
-  `).join('');
-}
-
-// ── Commands ───────────────────────────────────────────────────────────────
-async function sendFace(deviceId, face) {
-  try {
-    await api('POST', `/robot/${deviceId}/display`, { face });
-    toast(`Face: ${face}`);
-  } catch (e) { toast(`Error: ${e.message}`, false); }
-}
-
-async function sendSpeech(deviceId) {
-  const text = document.getElementById('speech-input').value.trim();
-  if (!text) return;
-  try {
-    await api('POST', `/robot/${deviceId}/speech`, { text });
-    toast('Speech sent');
-    document.getElementById('speech-input').value = '';
-  } catch (e) { toast(`Error: ${e.message}`, false); }
-}
-
-async function pushConfig(deviceId) {
-  const raw = document.getElementById('config-editor').value;
-  let cfg;
-  try   { cfg = JSON.parse(raw); }
-  catch { toast('Invalid JSON', false); return; }
-  try {
-    const res = await api('PUT', `/robot/${deviceId}/config`, cfg);
-    toast(`Config pushed — v${res.version}`);
-  } catch (e) { toast(`Error: ${e.message}`, false); }
-}
-
-function formatConfig() {
-  const el = document.getElementById('config-editor');
-  try   { el.value = JSON.stringify(JSON.parse(el.value), null, 2); }
-  catch { toast('Invalid JSON', false); }
-}
-
-// ── Utils ──────────────────────────────────────────────────────────────────
-function timeSince(iso) {
+function isOnline(lastSeen) { return Date.now() - new Date(lastSeen).getTime() < 90000; }
+function ago(iso) {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60)   return `${s}s ago`;
+  if (s < 60) return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s/60)}m ago`;
   return `${Math.floor(s/3600)}h ago`;
 }
+function dirBadge(dir) {
+  const map = { input:'input', output:'output', i2c:'i2c', power:'power' };
+  return `<span class="badge ${map[dir]||''}">${dir.toUpperCase()}</span>`;
+}
 
-// ── Init ───────────────────────────────────────────────────────────────────
+// ── Device list ──────────────────────────────────────────────────────────────
+async function loadDevices() {
+  devices = await api('GET', '/robot');
+  const el = document.getElementById('device-items');
+  if (!devices.length) { el.innerHTML = '<p style="color:var(--muted);font-size:.82rem">No devices yet.</p>'; return; }
+  el.innerHTML = devices.map(d => `
+    <div class="device-card ${selected===d.deviceId?'active':''}" onclick="selectDevice('${d.deviceId}')">
+      <div class="name">${d.deviceName}</div>
+      <div class="id">${d.deviceId}</div>
+      <div class="meta">
+        <span class="badge ${isOnline(d.lastSeen)?'online':'offline'}">${isOnline(d.lastSeen)?'ONLINE':'OFFLINE'}</span>
+        <span class="fw">v${d.firmwareVersion}</span>
+      </div>
+    </div>`).join('');
+}
+
+// ── Select device ────────────────────────────────────────────────────────────
+async function selectDevice(id) {
+  selected = id;
+  loadDevices();
+  const detail = document.getElementById('detail');
+  detail.className = '';
+  detail.innerHTML = `
+    <div class="tabs" id="tabs">
+      <div class="tab active" onclick="switchTab('health')">Health</div>
+      <div class="tab" onclick="switchTab('hardware')">Hardware</div>
+      <div class="tab" onclick="switchTab('pipeline')">Pipeline</div>
+      <div class="tab" onclick="switchTab('control')">Control</div>
+      <div class="tab" onclick="switchTab('sensors')">Sensors</div>
+    </div>
+    <div id="tab-health"   class="tab-content active"></div>
+    <div id="tab-hardware" class="tab-content"></div>
+    <div id="tab-pipeline" class="tab-content"></div>
+    <div id="tab-control"  class="tab-content"></div>
+    <div id="tab-sensors"  class="tab-content"></div>
+  `;
+  const d = await api('GET', `/robot/${id}`);
+  devicePins = await api('GET', `/robot/${id}/pins`);
+  renderHealth(d);
+  renderHardware(id, devicePins);
+  renderPipeline(id, devicePins);
+  renderControl(id);
+  renderSensors(d.readings || []);
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const names = ['health','hardware','pipeline','control','sensors'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+// ── Tab 1: Health ────────────────────────────────────────────────────────────
+function renderHealth(d) {
+  const online = isOnline(d.lastSeen);
+  const r = (d.readings||[])[0];
+  document.getElementById('tab-health').innerHTML = `
+    <div class="card">
+      <h3>Device Status</h3>
+      <div class="health-grid">
+        <div class="stat"><div class="val" style="color:${online?'var(--green)':'var(--red)'}">${online?'ONLINE':'OFFLINE'}</div><div class="lbl">Status</div></div>
+        <div class="stat"><div class="val">${d.firmwareVersion}</div><div class="lbl">Firmware</div></div>
+        <div class="stat"><div class="val" style="font-size:1rem">${ago(d.lastSeen)}</div><div class="lbl">Last Seen</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Device Info</h3>
+      <table>
+        <tr><th>Device ID</th><td style="font-family:monospace">${d.deviceId}</td></tr>
+        <tr><th>Type</th><td>${d.deviceType}</td></tr>
+        <tr><th>Registered</th><td>${new Date(d.createdAt).toLocaleString()}</td></tr>
+      </table>
+    </div>
+    ${r ? buildSensorCard(r) : ''}
+  `;
+}
+
+function sensorRow(label, val, unit) {
+  if (val == null) return '';
+  return `<tr><th>${label}</th><td>${val} ${unit}</td></tr>`;
+}
+
+function buildSensorCard(r) {
+  const rows = [
+    sensorRow('Temperature', r.temperature, '°C'),
+    sensorRow('Humidity',    r.humidity,    '%'),
+    sensorRow('Light',       r.light,       '%'),
+  ].join('');
+  return `<div class="card">
+    <h3>Latest Sensor Reading — ${ago(r.recordedAt)}</h3>
+    <table>${rows}</table>
+  </div>`;
+}
+
+// ── Tab 2: Hardware ──────────────────────────────────────────────────────────
+function renderHardware(deviceId, pins) {
+  const el = document.getElementById('tab-hardware');
+  el.innerHTML = `
+    <div class="card">
+      <h3 style="display:flex;align-items:center;justify-content:space-between">
+        Pin Registry
+        <button class="btn btn-primary btn-sm" onclick="showAddPin('${deviceId}')">+ Add Pin</button>
+      </h3>
+      <table>
+        <thead><tr><th>GPIO</th><th>Label</th><th>Direction</th><th>Component</th><th>Protocol</th><th>Live Value</th><th>Notes</th><th></th></tr></thead>
+        <tbody id="pin-table">
+          ${pins.map(p => pinRow(deviceId, p)).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div id="add-pin-form"></div>
+  `;
+}
+
+function pinRow(deviceId, p) {
+  return `<tr id="pin-row-${p.pin}">
+    <td><code>${p.pin}</code></td>
+    <td><strong>${p.label}</strong></td>
+    <td>${dirBadge(p.direction)}</td>
+    <td>${p.component}</td>
+    <td><span style="color:var(--muted);font-size:.75rem">${p.protocol||'—'}</span></td>
+    <td><span class="live-val" id="live-${deviceId}-${p.label}">—</span></td>
+    <td style="color:var(--muted);font-size:.75rem">${p.notes||'—'}</td>
+    <td><button class="btn btn-danger btn-sm" onclick="deletePin('${deviceId}','${p.pin}')">✕</button></td>
+  </tr>`;
+}
+
+function showAddPin(deviceId) {
+  document.getElementById('add-pin-form').innerHTML = `
+    <div class="card pipeline-form">
+      <h3>Add / Update Pin</h3>
+      <div class="row">
+        <div><label>GPIO / Pin</label><input id="np-pin" type="text" placeholder="e.g. 4, 3V3, GND" /></div>
+        <div><label>Label</label><input id="np-label" type="text" placeholder="e.g. DHT11_DATA" /></div>
+      </div>
+      <div class="row">
+        <div><label>Direction</label>
+          <select id="np-dir">
+            <option value="input">Input</option>
+            <option value="output">Output</option>
+            <option value="i2c">I2C</option>
+            <option value="power">Power</option>
+          </select>
+        </div>
+        <div><label>Protocol</label>
+          <select id="np-proto">
+            <option value="">—</option>
+            <option value="DIGITAL">Digital</option>
+            <option value="ANALOG">Analog</option>
+            <option value="I2C">I2C</option>
+            <option value="PWM">PWM</option>
+            <option value="UART">UART</option>
+            <option value="SPI">SPI</option>
+          </select>
+        </div>
+      </div>
+      <div><label>Component</label><input id="np-component" type="text" placeholder="e.g. DHT11, Relay, LED" /></div>
+      <div><label>Notes</label><input id="np-notes" type="text" placeholder="Optional notes" /></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="savePin('${deviceId}')">Save Pin</button>
+        <button class="btn btn-ghost"   onclick="document.getElementById('add-pin-form').innerHTML=''">Cancel</button>
+      </div>
+    </div>`;
+}
+
+async function savePin(deviceId) {
+  const pin       = document.getElementById('np-pin').value.trim();
+  const label     = document.getElementById('np-label').value.trim();
+  const direction = document.getElementById('np-dir').value;
+  const protocol  = document.getElementById('np-proto').value || null;
+  const component = document.getElementById('np-component').value.trim();
+  const notes     = document.getElementById('np-notes').value.trim() || null;
+  if (!pin || !label || !component) { toast('Pin, label and component are required', false); return; }
+  try {
+    await api('POST', `/robot/${deviceId}/pins`, { pin, label, direction, component, protocol, notes });
+    toast('Pin saved');
+    devicePins = await api('GET', `/robot/${deviceId}/pins`);
+    renderHardware(deviceId, devicePins);
+    renderPipeline(deviceId, devicePins);
+  } catch(e) { toast(`Error: ${e.message}`, false); }
+}
+
+async function deletePin(deviceId, pin) {
+  if (!confirm(`Delete pin ${pin}?`)) return;
+  try {
+    await api('DELETE', `/robot/${deviceId}/pins/${encodeURIComponent(pin)}`);
+    toast('Pin removed');
+    devicePins = await api('GET', `/robot/${deviceId}/pins`);
+    renderHardware(deviceId, devicePins);
+  } catch(e) { toast(`Error: ${e.message}`, false); }
+}
+
+// ── Tab 3: Pipeline ──────────────────────────────────────────────────────────
+async function renderPipeline(deviceId, pins) {
+  const rules = await api('GET', `/robot/${deviceId}/pipeline`);
+  const el = document.getElementById('tab-pipeline');
+
+  el.innerHTML = `
+    <div class="card">
+      <h3 style="display:flex;align-items:center;justify-content:space-between">
+        Data Pipeline Rules
+        <button class="btn btn-primary btn-sm" onclick="showAddRule('${deviceId}')">+ Add Rule</button>
+      </h3>
+      ${rules.length === 0 ? '<p style="color:var(--muted);font-size:.82rem;margin-top:4px">No rules yet. Add one to define what happens with sensor data.</p>' : ''}
+      <table id="rule-table" style="${rules.length===0?'display:none':''}">
+        <thead><tr><th>Pin / Label</th><th>Action</th><th>Config</th><th>Enabled</th><th></th></tr></thead>
+        <tbody>
+          ${rules.map(r => ruleRow(deviceId, r)).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div id="add-rule-form"></div>
+  `;
+}
+
+function ruleRow(deviceId, r) {
+  const cfg = r.config;
+  let summary = '';
+  if (r.action === 'threshold') summary = `${cfg.field} ${cfg.operator} ${cfg.value} → ${cfg.mqttTopic}`;
+  else if (r.action === 'mqtt_publish') summary = `→ ${cfg.topic}`;
+  else if (r.action === 'actuator') summary = `pin:${cfg.pinLabel} = ${cfg.value}`;
+  else summary = 'log to DB';
+
+  return `<tr>
+    <td><strong>${r.pinLabel}</strong></td>
+    <td><span class="badge" style="background:var(--surface2);color:var(--text)">${r.action}</span></td>
+    <td style="font-size:.75rem;color:var(--muted);font-family:monospace">${summary}</td>
+    <td>
+      <label class="toggle">
+        <input type="checkbox" ${r.enabled?'checked':''} onchange="toggleRule('${deviceId}','${r.id}',this.checked)">
+        <span class="slider"></span>
+      </label>
+    </td>
+    <td><button class="btn btn-danger btn-sm" onclick="deleteRule('${deviceId}','${r.id}')">✕</button></td>
+  </tr>`;
+}
+
+function showAddRule(deviceId) {
+  const pinOpts = devicePins.map(p => `<option value="${p.label}">${p.label} (${p.component})</option>`).join('');
+  document.getElementById('add-rule-form').innerHTML = `
+    <div class="card pipeline-form">
+      <h3>Add Pipeline Rule</h3>
+      <div class="row">
+        <div>
+          <label>Pin / Label</label>
+          <select id="nr-pin">${pinOpts}</select>
+        </div>
+        <div>
+          <label>Action</label>
+          <select id="nr-action" onchange="updateRuleForm()">
+            <option value="log">Log to DB</option>
+            <option value="threshold">Threshold → MQTT</option>
+            <option value="mqtt_publish">Publish to MQTT topic</option>
+            <option value="actuator">Trigger Actuator</option>
+          </select>
+        </div>
+      </div>
+      <div id="nr-extra"></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-primary" onclick="saveRule('${deviceId}')">Save Rule</button>
+        <button class="btn btn-ghost"   onclick="document.getElementById('add-rule-form').innerHTML=''">Cancel</button>
+      </div>
+    </div>`;
+  updateRuleForm();
+}
+
+function updateRuleForm() {
+  const action = document.getElementById('nr-action').value;
+  const el = document.getElementById('nr-extra');
+  if (action === 'log') { el.innerHTML = '<p style="font-size:.78rem;color:var(--muted)">Sensor readings are already saved to DB automatically.</p>'; return; }
+  if (action === 'threshold') {
+    el.innerHTML = `
+      <label>Reading field</label><input id="nr-field" type="text" placeholder="e.g. temperature, humidity" />
+      <div style="margin-top:8px">
+        <label>Condition</label>
+        <div class="threshold-fields">
+          <input id="nr-field2" type="text" placeholder="field" />
+          <select id="nr-op"><option>></option><option><</option><option>>=</option><option><=</option><option>==</option></select>
+          <input id="nr-thresh" type="number" placeholder="value" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div><label>Publish to MQTT topic</label><input id="nr-topic" type="text" placeholder="e.g. tara/robot/XXXX/display" /></div>
+        <div><label>Payload (JSON)</label><input id="nr-payload" type="text" placeholder='{"face":"error"}' /></div>
+      </div>`;
+    return;
+  }
+  if (action === 'mqtt_publish') {
+    el.innerHTML = `<label>Forward to MQTT topic</label><input id="nr-fwd-topic" type="text" placeholder="e.g. home/sensors/temperature" />`;
+    return;
+  }
+  if (action === 'actuator') {
+    const pinOpts = devicePins.filter(p=>p.direction==='output').map(p=>`<option value="${p.label}">${p.label} (GPIO ${p.pin})</option>`).join('');
+    el.innerHTML = `
+      <div class="row">
+        <div><label>Output Pin</label><select id="nr-act-pin">${pinOpts||'<option value="">No output pins</option>'}</select></div>
+        <div><label>Value</label><input id="nr-act-val" type="text" placeholder="1 / 0 / HIGH / LOW" /></div>
+      </div>`;
+  }
+}
+
+async function saveRule(deviceId) {
+  const action   = document.getElementById('nr-action').value;
+  const pinLabel = document.getElementById('nr-pin').value;
+  let config = {};
+
+  if (action === 'threshold') {
+    const field   = document.getElementById('nr-field2').value.trim();
+    const op      = document.getElementById('nr-op').value;
+    const thresh  = Number.parseFloat(document.getElementById('nr-thresh').value);
+    const topic   = document.getElementById('nr-topic').value.trim();
+    const payload = document.getElementById('nr-payload').value.trim();
+    if (!field || !topic || !payload) { toast('Fill all threshold fields', false); return; }
+    try { config = { field, operator: op, value: thresh, mqttTopic: topic, mqttPayload: JSON.parse(payload) }; }
+    catch { toast('Payload must be valid JSON', false); return; }
+  } else if (action === 'mqtt_publish') {
+    config = { topic: document.getElementById('nr-fwd-topic').value.trim() };
+  } else if (action === 'actuator') {
+    config = { pinLabel: document.getElementById('nr-act-pin').value, value: document.getElementById('nr-act-val').value };
+  }
+
+  try {
+    await api('POST', `/robot/${deviceId}/pipeline`, { pinLabel, action, config });
+    toast('Rule saved');
+    renderPipeline(deviceId, devicePins);
+  } catch(e) { toast(`Error: ${e.message}`, false); }
+}
+
+async function toggleRule(deviceId, id, enabled) {
+  try { await api('PATCH', `/robot/${deviceId}/pipeline/${id}`, { enabled }); }
+  catch(e) { toast(`Error: ${e.message}`, false); }
+}
+
+async function deleteRule(deviceId, id) {
+  try {
+    await api('DELETE', `/robot/${deviceId}/pipeline/${id}`);
+    toast('Rule deleted');
+    renderPipeline(deviceId, devicePins);
+  } catch(e) { toast(`Error: ${e.message}`, false); }
+}
+
+// ── Tab 4: Control ───────────────────────────────────────────────────────────
+function renderControl(deviceId) {
+  document.getElementById('tab-control').innerHTML = `
+    <div class="card">
+      <h3>Display</h3>
+      <div class="face-grid">
+        ${['idle','happy','sad','thinking','sleeping','listening','speaking','error'].map(f=>
+          `<button class="face-btn" onclick="sendFace('${deviceId}','${f}')">${f}</button>`
+        ).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <h3>Speech</h3>
+      <div class="speech-row">
+        <input id="speech-input" type="text" placeholder="Text for Tara to say…" />
+        <button class="btn btn-primary" onclick="sendSpeech('${deviceId}')">Say It</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Config (JSON)</h3>
+      <textarea id="config-editor">{\n  "version": 1,\n  "displayBrightness": 128,\n  "volume": 70,\n  "idleTimeout": 300\n}</textarea>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-primary" onclick="pushConfig('${deviceId}')">Push Config</button>
+        <button class="btn btn-ghost"   onclick="fmtConfig()">Format JSON</button>
+      </div>
+    </div>
+  `;
+}
+
+async function sendFace(id, face) {
+  try { await api('POST', `/robot/${id}/display`, { face }); toast(`Face: ${face}`); }
+  catch(e) { toast(`Error: ${e.message}`, false); }
+}
+async function sendSpeech(id) {
+  const t = document.getElementById('speech-input').value.trim();
+  if (!t) return;
+  try { await api('POST', `/robot/${id}/speech`, { text: t }); toast('Speech sent'); document.getElementById('speech-input').value=''; }
+  catch(e) { toast(`Error: ${e.message}`, false); }
+}
+async function pushConfig(id) {
+  let cfg;
+  try { cfg = JSON.parse(document.getElementById('config-editor').value); }
+  catch { toast('Invalid JSON', false); return; }
+  try { const r = await api('PUT', `/robot/${id}/config`, cfg); toast(`Config v${r.version} pushed`); }
+  catch(e) { toast(`Error: ${e.message}`, false); }
+}
+function fmtConfig() {
+  const el = document.getElementById('config-editor');
+  try { el.value = JSON.stringify(JSON.parse(el.value), null, 2); }
+  catch { toast('Invalid JSON', false); }
+}
+
+// ── Tab 5: Sensors ───────────────────────────────────────────────────────────
+function renderSensors(readings) {
+  document.getElementById('tab-sensors').innerHTML = `
+    <div class="card">
+      <h3>Sensor History (last ${readings.length})</h3>
+      ${readings.length === 0 ? '<p style="color:var(--muted);font-size:.82rem">No readings yet.</p>' : `
+      <table>
+        <thead><tr><th>Time</th><th>Temp (°C)</th><th>Humidity (%)</th><th>Light (%)</th></tr></thead>
+        <tbody>
+          ${readings.map(r=>`<tr>
+            <td style="color:var(--muted);font-size:.75rem">${ago(r.recordedAt)}</td>
+            <td>${r.temperature ?? '—'}</td>
+            <td>${r.humidity    ?? '—'}</td>
+            <td>${r.light       ?? '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`}
+    </div>
+  `;
+}
+
+// ── Live pin state via polling ───────────────────────────────────────────────
+async function pollPinState() {
+  if (!selected) return;
+  try {
+    const state = await api('GET', `/robot/${selected}/pin_state`);
+    Object.entries(state).forEach(([label, val]) => {
+      const el = document.getElementById(`live-${selected}-${label}`);
+      if (el) el.textContent = String(val);
+    });
+  } catch { /* offline */ }
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
 loadDevices();
-setInterval(loadDevices, 30_000); // auto-refresh list every 30 s
+setInterval(loadDevices, 30000);
+setInterval(pollPinState, 3000);
 </script>
 </body>
 </html>

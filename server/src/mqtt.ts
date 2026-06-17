@@ -3,6 +3,9 @@ import { db } from './db';
 
 let client: MqttClient | null = null;
 
+// Live pin state cache: deviceId → { label → value }
+export const pinStateCache: Record<string, Record<string, unknown>> = {};
+
 export function getMqtt(): MqttClient {
     if (!client) throw new Error('MQTT not initialised');
     return client;
@@ -16,48 +19,121 @@ export function initMqtt() {
         console.log(`[MQTT] connected to ${url}`);
         client!.subscribe('tara/robot/+/heartbeat');
         client!.subscribe('tara/robot/+/sensor');
+        client!.subscribe('tara/robot/+/pin_state');
     });
 
     client.on('message', async (topic, payload) => {
-        const parts    = topic.split('/');  // tara / robot / {id} / {kind}
+        const parts    = topic.split('/'); // tara/robot/{id}/{kind}
         const deviceId = parts[2];
         const kind     = parts[3];
-
         if (!deviceId) return;
 
-        if (kind === 'heartbeat') {
-            await db.device.updateMany({
-                where: { deviceId },
-                data:  { lastSeen: new Date() },
-            });
-        }
-
-        if (kind === 'sensor') {
-            try {
-                const body = JSON.parse(payload.toString());
-                await db.sensorReading.create({
-                    data: {
-                        deviceId,
-                        temperature: body.temperature,
-                        humidity:    body.humidity,
-                        light:       body.light,
-                        extra:       body,
-                    },
-                });
-            } catch { /* malformed payload */ }
-        }
+        await handleMessage(deviceId, kind, payload.toString());
     });
 
     client.on('error', (err) => console.error('[MQTT] error', err));
 }
 
-// Publish a command to a robot topic
+async function handleMessage(deviceId: string, kind: string, raw: string) {
+    if (kind === 'heartbeat') {
+        await db.device.updateMany({
+            where: { deviceId },
+            data:  { lastSeen: new Date() },
+        }).catch(() => {});
+        return;
+    }
+
+    if (kind === 'sensor') {
+        try {
+            const body = JSON.parse(raw);
+            await db.sensorReading.create({
+                data: {
+                    deviceId,
+                    temperature: body.temperature,
+                    humidity:    body.humidity,
+                    light:       body.light,
+                    extra:       body,
+                },
+            });
+            await runPipeline(deviceId, body);
+        } catch { /* malformed payload */ }
+        return;
+    }
+
+    if (kind === 'pin_state') {
+        try {
+            const state = JSON.parse(raw);
+            pinStateCache[deviceId] = Object.assign(pinStateCache[deviceId] ?? {}, state);
+        } catch { /* malformed */ }
+    }
+}
+
+// ── Pipeline engine ───────────────────────────────────────────────────────────
+
+function evalThreshold(val: number, operator: string, thresh: number): boolean {
+    if (operator === '>')  return val >  thresh;
+    if (operator === '<')  return val <  thresh;
+    if (operator === '>=') return val >= thresh;
+    if (operator === '<=') return val <= thresh;
+    if (operator === '==') return val === thresh;
+    return false;
+}
+
+function fireThreshold(cfg: Record<string, unknown>, deviceId: string, reading: Record<string, unknown>) {
+    const field    = cfg['field']    as string;
+    const operator = cfg['operator'] as string;
+    const thresh   = cfg['value']    as number;
+    const val      = reading[field]  as number;
+    if (val == null || !evalThreshold(val, operator, thresh)) return;
+
+    const mqttTopic   = cfg['mqttTopic']   as string | undefined;
+    const mqttPayload = cfg['mqttPayload'] as object | undefined;
+    if (mqttTopic && mqttPayload) {
+        getMqtt().publish(mqttTopic, JSON.stringify(mqttPayload), { qos: 0 });
+        console.log(`[Pipeline] threshold ${field}${operator}${thresh} → ${mqttTopic}`);
+    }
+}
+
+async function runRule(
+    rule: { id: string; action: string; pinLabel: string; config: unknown },
+    deviceId: string,
+    reading: Record<string, unknown>,
+) {
+    const cfg = rule.config as Record<string, unknown>;
+
+    if (rule.action === 'log')            return;
+    if (rule.action === 'threshold')      { fireThreshold(cfg, deviceId, reading); return; }
+    if (rule.action === 'mqtt_publish')   {
+        const t = cfg['topic'] as string;
+        if (t) getMqtt().publish(t, JSON.stringify(reading), { qos: 0 });
+        return;
+    }
+    if (rule.action === 'actuator') {
+        const pin = cfg['pinLabel'] as string;
+        if (pin) getMqtt().publish(
+            `tara/robot/${deviceId}/actuator`,
+            JSON.stringify({ pin, value: cfg['value'] }),
+            { qos: 0 },
+        );
+    }
+}
+
+async function runPipeline(deviceId: string, reading: Record<string, unknown>) {
+    const rules = await db.pipelineRule.findMany({ where: { deviceId, enabled: true } });
+    for (const rule of rules) {
+        await runRule(rule, deviceId, reading).catch(e =>
+            console.error(`[Pipeline] rule ${rule.id} error:`, e)
+        );
+    }
+}
+
+// ── Publish helpers ───────────────────────────────────────────────────────────
+
 export function publishToRobot(
     deviceId: string,
-    topic: 'config' | 'display' | 'emotion' | 'speech' | 'ota',
+    topic: 'config' | 'display' | 'emotion' | 'speech' | 'ota' | 'actuator',
     payload: object,
     qos: 0 | 1 = 0,
 ) {
-    const t = `tara/robot/${deviceId}/${topic}`;
-    getMqtt().publish(t, JSON.stringify(payload), { qos });
+    getMqtt().publish(`tara/robot/${deviceId}/${topic}`, JSON.stringify(payload), { qos });
 }
