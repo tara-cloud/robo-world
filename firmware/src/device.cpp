@@ -1,21 +1,19 @@
 // Tara Robot — device logic
-// OLED display, emotion engine, speech stub (Phase 1)
+// Display: SH1106 128x64 via U8g2 SW_I2C (SDA=21, SCL=22)
 
 #include "TaraCore.h"
 #include <ArduinoJson.h>
-#include <Adafruit_SSD1306.h>
-#include <Adafruit_GFX.h>
+#include <U8g2lib.h>
 
-// ─── OLED ─────────────────────────────────────────────────────────────────────
-static const int OLED_W    = 128;
-static const int OLED_H    = 64;
-static const int OLED_RST  = -1;
-static const int I2C_SDA   = 21;
-static const int I2C_SCL   = 22;
-static Adafruit_SSD1306 display(OLED_W, OLED_H, &Wire, OLED_RST);
+// ─── Display ──────────────────────────────────────────────────────────────────
+static const int I2C_SCL = 22;
+static const int I2C_SDA = 21;
+
+static U8G2_SH1106_128X64_NONAME_F_SW_I2C
+    u8g2(U8G2_R0, I2C_SCL, I2C_SDA, U8X8_PIN_NONE);
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-static int  displayBrightness = 80;
+static int  displayBrightness = 128;
 static int  volume            = 70;
 static int  idleTimeout       = 300;
 
@@ -27,116 +25,90 @@ struct EmotionState {
 };
 static EmotionState emotion;
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Draw helpers ─────────────────────────────────────────────────────────────
 
 static void drawEyes(int lx, int ly, int rx, int ry, int r, bool blink = false) {
     if (blink) {
-        display.drawFastHLine(lx - r, ly, r * 2, SSD1306_WHITE);
-        display.drawFastHLine(rx - r, ry, r * 2, SSD1306_WHITE);
+        u8g2.drawHLine(lx - r, ly, r * 2);
+        u8g2.drawHLine(rx - r, ry, r * 2);
     } else {
-        display.fillCircle(lx, ly, r, SSD1306_WHITE);
-        display.fillCircle(rx, ry, r, SSD1306_WHITE);
-    }
-}
-
-static void drawMouth(int cx, int cy, int w, int h, bool smile) {
-    if (smile) {
-        // arc approximation: draw three downward segments
-        display.drawFastHLine(cx - w/2, cy,     w,     SSD1306_WHITE);
-        display.drawPixel(cx - w/2, cy + 1,                SSD1306_WHITE);
-        display.drawPixel(cx + w/2 - 1, cy + 1,            SSD1306_WHITE);
-    } else {
-        display.drawFastHLine(cx - w/2, cy, w, SSD1306_WHITE);
+        u8g2.drawDisc(lx, ly, r);
+        u8g2.drawDisc(rx, ry, r);
     }
 }
 
 // ─── Face templates ───────────────────────────────────────────────────────────
 
-static void faceClear() {
-    display.clearDisplay();
-}
-
 static void faceIdle() {
-    faceClear();
+    u8g2.clearBuffer();
     drawEyes(38, 26, 90, 26, 9);
-    drawMouth(64, 46, 24, 4, false);
-    display.display();
+    u8g2.drawHLine(52, 46, 24);
+    u8g2.sendBuffer();
 }
 
 static void faceHappy() {
-    faceClear();
+    u8g2.clearBuffer();
     drawEyes(38, 24, 90, 24, 9);
-    // raised cheeks
-    display.fillCircle(26, 38, 5, SSD1306_WHITE);
-    display.fillCircle(102, 38, 5, SSD1306_WHITE);
-    drawMouth(64, 46, 28, 6, true);
-    display.display();
+    u8g2.drawDisc(26, 38, 5);
+    u8g2.drawDisc(102, 38, 5);
+    u8g2.drawHLine(50, 46, 28);
+    u8g2.drawPixel(50, 47);
+    u8g2.drawPixel(77, 47);
+    u8g2.sendBuffer();
 }
 
 static void faceSad() {
-    faceClear();
-    // drooping inner corners
-    display.fillCircle(38, 28, 8, SSD1306_WHITE);
-    display.fillCircle(90, 28, 8, SSD1306_WHITE);
-    // frown
-    display.drawFastHLine(64 - 12, 48, 24, SSD1306_WHITE);
-    display.drawPixel(64 - 12, 47, SSD1306_WHITE);
-    display.drawPixel(64 + 11, 47, SSD1306_WHITE);
-    display.display();
+    u8g2.clearBuffer();
+    drawEyes(38, 28, 90, 28, 8);
+    u8g2.drawHLine(52, 48, 24);
+    u8g2.drawPixel(52, 47);
+    u8g2.drawPixel(75, 47);
+    u8g2.sendBuffer();
 }
 
 static void faceThinking() {
-    faceClear();
-    // one eye looking up-right
-    display.fillCircle(38, 22, 9, SSD1306_WHITE);
-    display.fillCircle(90, 18, 9, SSD1306_WHITE);
-    // dots ...
+    u8g2.clearBuffer();
+    u8g2.drawDisc(38, 22, 9);
+    u8g2.drawDisc(90, 18, 9);
     for (int i = 0; i < 3; i++)
-        display.fillCircle(54 + i * 10, 50, 2, SSD1306_WHITE);
-    display.display();
+        u8g2.drawDisc(54 + i * 10, 50, 2);
+    u8g2.sendBuffer();
 }
 
 static void faceSleeping() {
-    faceClear();
-    drawEyes(38, 26, 90, 26, 9, true); // blink = closed lines
-    // "z z z"
-    display.setTextSize(1);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(96, 10); display.print("z");
-    display.setCursor(104, 4); display.print("z");
-    display.setCursor(112, 0); display.print("z");
-    display.display();
+    u8g2.clearBuffer();
+    drawEyes(38, 26, 90, 26, 9, true);
+    u8g2.setFont(u8g2_font_6x10_tf);
+    u8g2.drawStr(96, 18, "z");
+    u8g2.drawStr(104, 12, "z");
+    u8g2.drawStr(112, 6,  "z");
+    u8g2.sendBuffer();
 }
 
 static void faceListening() {
-    faceClear();
-    // wider eyes
+    u8g2.clearBuffer();
     drawEyes(38, 26, 90, 26, 11);
-    // open mouth
-    display.drawCircle(64, 48, 6, SSD1306_WHITE);
-    display.display();
+    u8g2.drawCircle(64, 48, 6);
+    u8g2.sendBuffer();
 }
 
 static void faceSpeaking() {
-    faceClear();
+    u8g2.clearBuffer();
     drawEyes(38, 26, 90, 26, 9);
-    // animated open mouth (static frame)
-    display.fillRoundRect(50, 42, 28, 12, 4, SSD1306_WHITE);
-    display.display();
+    u8g2.drawRBox(50, 42, 28, 12, 4);
+    u8g2.sendBuffer();
 }
 
 static void faceError() {
-    faceClear();
-    // X eyes
+    u8g2.clearBuffer();
     for (int d = -6; d <= 6; d++) {
-        display.drawPixel(38 + d, 26 + d,  SSD1306_WHITE);
-        display.drawPixel(38 + d, 26 - d,  SSD1306_WHITE);
-        display.drawPixel(90 + d, 26 + d,  SSD1306_WHITE);
-        display.drawPixel(90 + d, 26 - d,  SSD1306_WHITE);
+        u8g2.drawPixel(38 + d, 26 + d);
+        u8g2.drawPixel(38 + d, 26 - d);
+        u8g2.drawPixel(90 + d, 26 + d);
+        u8g2.drawPixel(90 + d, 26 - d);
     }
-    // flat mouth
-    drawMouth(64, 46, 20, 0, false);
-    display.display();
+    u8g2.drawHLine(54, 46, 20);
+    u8g2.sendBuffer();
 }
 
 static void renderFace(const String& face) {
@@ -150,43 +122,37 @@ static void renderFace(const String& face) {
     else                          faceIdle();
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
-
 // ─── Boot log ─────────────────────────────────────────────────────────────────
-// Layout: logo banner (top 20 px) + divider + up to 4 scrolling log lines below.
+// Layout: "TARA" logo (top 18px) + divider + 4 scrolling log lines
 
-static const int LOG_Y_START = 22;  // y below divider
-static const int LOG_LINE_H  = 10;  // px per log line (textSize 1 = 8px + 2 gap)
-static const int LOG_MAX     = 4;   // lines visible
+static const int LOG_Y_START = 20;
+static const int LOG_LINE_H  = 11;
+static const int LOG_MAX     = 4;
 
 static String logLines[LOG_MAX];
 static int    logCount = 0;
 
 static void redrawBootScreen() {
-    display.clearDisplay();
+    u8g2.clearBuffer();
 
-    // ── Logo banner ──────────────────────────────────────────────────────────
-    display.setTextSize(2);
-    display.setTextColor(SSD1306_WHITE);
-    // "TARA" centred
-    int16_t bx, by; uint16_t bw, bh;
-    display.getTextBounds("TARA", 0, 0, &bx, &by, &bw, &bh);
-    display.setCursor((OLED_W - bw) / 2, 2);
-    display.print("TARA");
+    // Logo
+    u8g2.setFont(u8g2_font_ncenB14_tr);
+    int logoW = u8g2.getStrWidth("TARA");
+    u8g2.drawStr((128 - logoW) / 2, 15, "TARA");
 
-    // Thin divider under logo
-    display.drawFastHLine(0, 19, OLED_W, SSD1306_WHITE);
+    // Divider
+    u8g2.drawHLine(0, 18, 128);
 
-    // ── Log lines ────────────────────────────────────────────────────────────
-    display.setTextSize(1);
-    int start = max(0, logCount - LOG_MAX);
+    // Log lines (font ascent ~8px, y is baseline)
+    u8g2.setFont(u8g2_font_6x10_tf);
+    int start = (logCount > LOG_MAX) ? logCount - LOG_MAX : 0;
     for (int i = start; i < logCount; i++) {
         int row = i - start;
-        display.setCursor(0, LOG_Y_START + row * LOG_LINE_H);
-        display.print(logLines[i % LOG_MAX]);
+        u8g2.drawStr(0, LOG_Y_START + row * LOG_LINE_H + 8,
+                     logLines[i % LOG_MAX].c_str());
     }
 
-    display.display();
+    u8g2.sendBuffer();
 }
 
 void tlog(const String& msg) {
@@ -196,41 +162,32 @@ void tlog(const String& msg) {
     redrawBootScreen();
 }
 
-void setupDeviceHardware() {
-    Wire.begin(I2C_SDA, I2C_SCL);
+// ─── Public API ───────────────────────────────────────────────────────────────
 
-    // Try 0x3C first, fall back to 0x3D
-    bool ok = display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-    if (!ok) ok = display.begin(SSD1306_SWITCHCAPVCC, 0x3D);
-    if (!ok) {
-        Serial.println("[Robot] OLED not found");
-        return;
-    }
-    display.ssd1306_command(SSD1306_SETCONTRAST);
-    display.ssd1306_command((uint8_t)map(displayBrightness, 0, 100, 0, 255));
+void setupDeviceHardware() {
+    u8g2.begin();
+    u8g2.setContrast((uint8_t)displayBrightness);
     redrawBootScreen();
-    Serial.println("[Robot] Hardware ready");
+    Serial.println("[Robot] Hardware ready — SH1106 128x64");
 }
 
 void setState(RobotState s) {
     currentState = s;
-    // Mirror state onto OLED immediately
     switch (s) {
-        case STATE_BOOTING:     faceSleeping();  break;
+        case STATE_BOOTING:
+        case STATE_SLEEPING:    faceSleeping();  break;
         case STATE_CONNECTING:
         case STATE_REGISTERING:
-        case STATE_CONFIGURING: faceThinking();  break;
+        case STATE_CONFIGURING:
+        case STATE_THINKING:    faceThinking();  break;
         case STATE_IDLE:        faceIdle();      break;
         case STATE_LISTENING:   faceListening(); break;
-        case STATE_THINKING:    faceThinking();  break;
         case STATE_SPEAKING:    faceSpeaking();  break;
-        case STATE_SLEEPING:    faceSleeping();  break;
         case STATE_ERROR:       faceError();     break;
     }
 }
 
 void renderIdleFace() {
-    // Blink every ~4 s
     static unsigned long lastBlink = 0;
     static bool isBlinking = false;
     unsigned long now = millis();
@@ -238,10 +195,10 @@ void renderIdleFace() {
     if (!isBlinking && now - lastBlink > 4000) {
         isBlinking = true;
         lastBlink  = now;
-        faceClear();
+        u8g2.clearBuffer();
         drawEyes(38, 26, 90, 26, 9, true);
-        drawMouth(64, 46, 24, 4, false);
-        display.display();
+        u8g2.drawHLine(52, 46, 24);
+        u8g2.sendBuffer();
     } else if (isBlinking && now - lastBlink > 120) {
         isBlinking = false;
         faceIdle();
@@ -252,8 +209,7 @@ void applyRobotConfig(const JsonDocument& doc) {
     displayBrightness = doc["displayBrightness"] | displayBrightness;
     volume            = doc["volume"]            | volume;
     idleTimeout       = doc["idleTimeout"]       | idleTimeout;
-    display.ssd1306_command(SSD1306_SETCONTRAST);
-    display.ssd1306_command((uint8_t)map(displayBrightness, 0, 100, 0, 255));
+    u8g2.setContrast((uint8_t)displayBrightness);
 }
 
 void handleDisplay(const String& json) {
@@ -275,10 +231,8 @@ void handleEmotion(const String& json) {
     Serial.printf("[Robot] Emotion: %s energy=%d\n",
         emotion.state.c_str(), emotion.energy);
 
-    // Map emotion state → face
     renderFace(emotion.state);
 
-    // Map emotion → robot state
     if      (emotion.state == "listening") setState(STATE_LISTENING);
     else if (emotion.state == "thinking")  setState(STATE_THINKING);
     else if (emotion.state == "speaking")  setState(STATE_SPEAKING);
@@ -293,20 +247,13 @@ void handleSpeech(const String& json) {
 
     Serial.printf("[Robot] Speech: %s\n", text.c_str());
     setState(STATE_SPEAKING);
-
-    // TODO: I2S / DAC audio playback
-    // For now just show the speaking face for the text duration (~100ms/char)
     delay(constrain((int)text.length() * 80, 500, 6000));
-
     setState(STATE_IDLE);
 }
 
 void handleOTA(const String& json) {
     JsonDocument doc;
     if (deserializeJson(doc, json) != DeserializationError::Ok) return;
-    String version = doc["version"] | String("");
-    String url     = doc["url"]     | String("");
-
-    Serial.printf("[Robot] OTA: v%s from %s\n", version.c_str(), url.c_str());
+    Serial.printf("[Robot] OTA: v%s\n", (const char*)doc["version"]);
     // TODO: esp_https_ota()
 }
