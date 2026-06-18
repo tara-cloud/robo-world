@@ -46,7 +46,6 @@ model Device {
   configs     DeviceConfig[]
   readings    SensorReading[]
   components  DeviceComponent[]
-  pins        DevicePin[]
   pipeline    PipelineRule[]
 }
 
