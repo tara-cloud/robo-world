@@ -142,6 +142,18 @@
     /* ── Toast ───────────────────────────────────────────────────────────── */
     #toast { position:fixed; bottom:18px; right:18px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:8px 14px; font-size:.8rem; opacity:0; transition:opacity .2s; pointer-events:none; z-index:100; }
     #toast.show { opacity:1; }
+    /* ── Modal popup ──── */
+    #modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(6px); z-index:200; align-items:center; justify-content:center; }
+    #modal-backdrop.open { display:flex; }
+    dialog#modal-box { background:var(--surface); border:1px solid var(--border); border-radius:12px; width:min(560px,92vw); max-height:85vh; display:flex; flex-direction:column; box-shadow:0 24px 64px rgba(0,0,0,.5); padding:0; margin:0; color:var(--text); }
+    #modal-header { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--border); flex-shrink:0; }
+    #modal-header h2 { font-size:.95rem; font-weight:600; }
+    #modal-close { background:none; border:none; color:var(--muted); font-size:1.2rem; cursor:pointer; padding:0 4px; line-height:1; }
+    #modal-close:hover { color:var(--text); }
+    #modal-body { overflow-y:auto; padding:18px; display:flex; flex-direction:column; gap:12px; }
+    /* reuse inline-form inside modal without surface2 bg */
+    #modal-body .inline-form { background:transparent; border:none; padding:0; }
+
     /* ── Service tag ──── */
     .svc-tag { display:inline-flex; align-items:center; gap:6px; background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:4px 12px; margin-bottom:6px; cursor:pointer; font-size:.8rem; transition:border-color .15s; }
     .svc-tag:hover, .svc-tag.active { border-color:var(--accent); color:var(--accent); }
@@ -211,6 +223,16 @@
   </div>
 </main>
 
+<div id="modal-backdrop">
+  <dialog id="modal-box">
+    <div id="modal-header">
+      <h2 id="modal-title">Form</h2>
+      <button id="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </dialog>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -249,6 +271,29 @@ function dirBadge(dir) {
   const map = { input:'input', output:'output', i2c:'i2c', power:'power' };
   return `<span class="badge ${map[dir]||''}">${dir.toUpperCase()}</span>`;
 }
+
+// ── Modal helpers ─────────────────────────────────────────────────────────
+function openModal(title, html, onConfirm) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('modal-backdrop').classList.add('open');
+  document.getElementById('modal-box').focus?.();
+  if (onConfirm) globalThis._modalConfirm = onConfirm;
+  // Focus first input
+  setTimeout(() => {
+    const first = document.querySelector('#modal-body input, #modal-body select, #modal-body textarea');
+    first?.focus();
+  }, 50);
+}
+function closeModal() {
+  document.getElementById('modal-backdrop').classList.remove('open');
+  document.getElementById('modal-body').innerHTML = '';
+  delete globalThis._modalConfirm;
+}
+function handleBackdropClick(e) {
+  if (e.target === document.getElementById('modal-backdrop')) closeModal();
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 // ── Load ───────────────────────────────────────────────────────────────────
 async function loadAll() {
@@ -294,21 +339,13 @@ function renderProjectList() {
 }
 
 function showNewProjectForm() {
-  const el = document.getElementById('project-list');
-  const existing = document.getElementById('new-proj-form');
-  if (existing) { existing.remove(); return; }
-  const form = document.createElement('div');
-  form.id = 'new-proj-form';
-  form.className = 'inline-form';
-  form.innerHTML = `
-    <div><label>Name</label><input id="np-name" placeholder="e.g. Tara Home" /></div>
-    <div><label>Description</label><input id="np-desc" placeholder="Optional" /></div>
-    <div class="row">
-      <button class="btn btn-primary btn-sm" onclick="createProject()">Create</button>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('new-proj-form').remove()">Cancel</button>
-    </div>`;
-  el.prepend(form);
-  document.getElementById('np-name').focus();
+  openModal('New Project', `
+    <div><label class="field"><span style="font-size:.75rem;color:var(--muted)">Name</span><input id="np-name" placeholder="e.g. Tara Home" /></label></div>
+    <div><label class="field"><span style="font-size:.75rem;color:var(--muted)">Description</span><input id="np-desc" placeholder="Optional" /></label></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="createProject()">Create</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    </div>`);
 }
 
 async function createProject() {
@@ -318,7 +355,7 @@ async function createProject() {
   try {
     await api('POST', '/projects', { name, description: desc });
     toast('Project created');
-    document.getElementById('new-proj-form')?.remove();
+    closeModal();
     loadAll();
   } catch(e) { toast(`Error: ${e.message}`, false); }
 }
@@ -405,17 +442,13 @@ function serviceCard(s, projId) {
 }
 
 function showAddService(projId) {
-  const el = document.getElementById(`svc-form-${projId}`);
-  el.innerHTML = `
-    <div class="inline-form">
-      <div><label>Name</label><input id="sn-name" placeholder="e.g. Tara Brain" /></div>
-      <div><label>Description</label><input id="sn-desc" placeholder="Optional" /></div>
-      <div class="row">
-        <button class="btn btn-primary btn-sm" onclick="createService('${projId}')">Add</button>
-        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('svc-form-${projId}').innerHTML=''">Cancel</button>
-      </div>
-    </div>`;
-  document.getElementById('sn-name').focus();
+  openModal('New Service', `
+    <div><label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:3px">Name</label><input id="sn-name" placeholder="e.g. Tara Brain" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.82rem;width:100%" /></div>
+    <div><label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:3px">Description</label><input id="sn-desc" placeholder="Optional" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.82rem;width:100%" /></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="createService('${projId}')">Add</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    </div>`);
 }
 
 async function createService(projId) {
@@ -425,6 +458,7 @@ async function createService(projId) {
   try {
     await api('POST', `/projects/${projId}/services`, { name, description: desc });
     toast('Service added');
+    closeModal();
     const proj = await api('GET', `/projects/${projId}`);
     renderMiddle(proj);
     loadAll();
@@ -535,8 +569,7 @@ let _editQueueFields = []; // working copy during create/edit
 
 function showCreateQueue(projId) {
   _editQueueFields = [];
-  const el = document.getElementById(`queue-form-${projId}`);
-  el.innerHTML = buildQueueForm(projId, null);
+  openModal('New Queue', buildQueueForm(projId, null));
 }
 
 function buildQueueForm(projId, existing) {
@@ -592,7 +625,7 @@ function buildQueueForm(projId, existing) {
 
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary btn-sm" onclick="saveQueueForm('${projId}',${isEdit?`'${existing.name}'`:'null'})">${isEdit?'Update':'Create'} Queue</button>
-      <button class="btn btn-ghost btn-sm" onclick="closeQueueForm('${projId}')">Cancel</button>
+      <button class="btn btn-ghost btn-sm" onclick="cancelQueueForm('${projId}','${isEdit ? existing?.name ?? '' : ''}')">Cancel</button>
     </div>
   </div>`;
 }
@@ -637,7 +670,13 @@ function saveQueueForm(projId, existingName) {
 
   saveQueue(projId, { name, topic: topic || `tara/${projId}/${name}`, description: desc, schema });
   toast(`Queue "${name}" saved`);
-  closeQueueForm(projId);
+  if (isExisting(existingName)) {
+    // Editing from detail overlay — re-render detail
+    const q = JSON.parse(localStorage.getItem(mqttqKey(projId, name)) || 'null');
+    if (q) renderQueueDetail(projId, q);
+  } else {
+    closeModal();
+  }
 
   // Refresh queues list in middle panel
   const qEl = document.getElementById(`queues-list-${projId}`);
@@ -648,6 +687,18 @@ function saveQueueForm(projId, existingName) {
 function closeQueueForm(projId) {
   const el = document.getElementById(`queue-form-${projId}`);
   if (el) el.innerHTML = '';
+  _editQueueFields = [];
+}
+
+function cancelQueueForm(projId, existingName) {
+  if (existingName) {
+    // Inside the queue detail overlay — reset the edit form
+    const q  = JSON.parse(localStorage.getItem(mqttqKey(projId, existingName)) || 'null');
+    const el = document.getElementById(`queue-detail-form-${existingName}`);
+    if (el && q) { _editQueueFields = structuredClone(q.schema || []); el.innerHTML = buildQueueForm(projId, q); }
+  } else {
+    closeModal();
+  }
   _editQueueFields = [];
 }
 
@@ -1034,22 +1085,19 @@ async function deleteService(projId, sid) {
 }
 
 function showAssignDevice(projId) {
-  const el = document.getElementById(`assign-form-${projId}`);
   const unassigned = allDevices.filter(d => !d.projectId);
   if (!unassigned.length) { toast('No unassigned devices available'); return; }
-  el.innerHTML = `
-    <div class="inline-form">
-      <div>
-        <label>Device</label>
-        <select id="ad-device">
-          ${unassigned.map(d => `<option value="${d.deviceId}">${d.deviceName} (${d.deviceType})</option>`).join('')}
-        </select>
-      </div>
-      <div class="row">
-        <button class="btn btn-primary btn-sm" onclick="assignDevice('${projId}')">Assign</button>
-        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('assign-form-${projId}').innerHTML=''">Cancel</button>
-      </div>
-    </div>`;
+  openModal('Assign Device', `
+    <div>
+      <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:3px">Device</label>
+      <select id="ad-device" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.82rem;width:100%">
+        ${unassigned.map(d => `<option value="${d.deviceId}">${d.deviceName} (${d.deviceType})</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="assignDevice('${projId}')">Assign</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    </div>`);
 }
 
 async function assignDevice(projId) {
@@ -1057,6 +1105,7 @@ async function assignDevice(projId) {
   try {
     await api('POST', `/projects/${projId}/devices/${deviceId}`);
     toast('Device assigned');
+    closeModal();
     const proj = await api('GET', `/projects/${projId}`);
     renderMiddle(proj);
     loadAll();
@@ -1250,6 +1299,15 @@ function queueKey(deviceId, pinLabel) { return `queue_${deviceId}_${pinLabel}`; 
 function getQueue(deviceId, pinLabel)  { return JSON.parse(localStorage.getItem(queueKey(deviceId, pinLabel)) || 'null'); }
 function setQueue(deviceId, pinLabel, cfg) { localStorage.setItem(queueKey(deviceId, pinLabel), JSON.stringify(cfg)); }
 
+function compDir(gpins) {
+  const dirs = new Set(gpins.map(p => p.direction));
+  if ([...dirs].every(d => d === 'power' || d === 'i2c')) return 'structural';
+  if (dirs.has('input') && dirs.has('output')) return 'mixed';
+  if (dirs.has('output')) return 'output';
+  if (dirs.has('input'))  return 'input';
+  return 'structural';
+}
+
 function renderHardware(deviceId, pins) {
   const groups = {};
   for (const p of pins) {
@@ -1258,16 +1316,7 @@ function renderHardware(deviceId, pins) {
     groups[key].push(p);
   }
 
-  function compDir(gpins) {
-    const dirs = new Set(gpins.map(p => p.direction));
-    if ([...dirs].every(d => d === 'power' || d === 'i2c')) return 'structural';
-    if (dirs.has('input') && dirs.has('output')) return 'mixed';
-    if (dirs.has('output')) return 'output';
-    if (dirs.has('input'))  return 'input';
-    return 'structural';
-  }
-
-  const dirLabels = { input:'SENSOR', output:'ACTUATOR', mixed:'MIXED', structural:'BUS' };
+  const dirLabels  = { input:'SENSOR', output:'ACTUATOR', mixed:'MIXED', structural:'BUS' };
   const dirClasses = { input:'input', output:'output', mixed:'', structural:'' };
 
   const cardsHtml = Object.entries(groups).map(([component, gpins]) => {
@@ -1278,7 +1327,7 @@ function renderHardware(deviceId, pins) {
     return `<div class="comp-card" onclick="openComponentDetail('${deviceId}','${encodeURIComponent(component)}')">
       <div class="cname">${component}</div>
       <div class="cmeta">
-        <span class="badge ${dirClasses[dir]}" style="${!dirClasses[dir]?'background:var(--surface2);color:var(--muted)':''}">${dirLabels[dir]}</span>
+        <span class="badge ${dirClasses[dir]}" style="${dirClasses[dir] ? '' : 'background:var(--surface2);color:var(--muted)'}">${dirLabels[dir]}</span>
         ${pins} ${qBadge}
       </div>
     </div>`;
@@ -1402,24 +1451,29 @@ async function deleteComponent(deviceId, componentEncoded) {
   } catch(e) { toast(`Error: ${e.message}`, false); }
 }
 function showAddPin(deviceId) {
-  document.getElementById('add-pin-form').innerHTML = `
-    <div class="pipeline-form">
-      <h3>Add / Update Pin</h3>
-      <div class="row">
-        <div><label>GPIO / Pin</label><input id="np-pin" placeholder="e.g. 4, 3V3, GND" /></div>
-        <div><label>Label</label><input id="np-label" placeholder="e.g. DHT11_DATA" /></div>
+  openModal('Add / Update Pin', `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:3px">GPIO / Pin</label><input id="np-pin" placeholder="e.g. 4, 3V3, GND" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.82rem;width:100%" /></div>
+      <div><label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:3px">Label</label><input id="np-label" placeholder="e.g. DHT11_DATA" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.82rem;width:100%" /></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:3px">Direction</label>
+        <select id="np-dir" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.82rem;width:100%">
+          <option value="input">Input</option><option value="output">Output</option><option value="i2c">I2C</option><option value="power">Power</option>
+        </select>
       </div>
-      <div class="row">
-        <div><label>Direction</label><select id="np-dir"><option value="input">Input</option><option value="output">Output</option><option value="i2c">I2C</option><option value="power">Power</option></select></div>
-        <div><label>Protocol</label><select id="np-proto"><option value="">—</option><option>DIGITAL</option><option>ANALOG</option><option>I2C</option><option>PWM</option><option>UART</option><option>SPI</option></select></div>
+      <div><label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:3px">Protocol</label>
+        <select id="np-proto" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.82rem;width:100%">
+          <option value="">—</option><option>DIGITAL</option><option>ANALOG</option><option>I2C</option><option>PWM</option><option>UART</option><option>SPI</option>
+        </select>
       </div>
-      <div><label>Component</label><input id="np-component" placeholder="e.g. DHT11, Relay, LED" /></div>
-      <div><label>Notes</label><input id="np-notes" placeholder="Optional" /></div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" onclick="savePin('${deviceId}')">Save</button>
-        <button class="btn btn-ghost" onclick="document.getElementById('add-pin-form').innerHTML=''">Cancel</button>
-      </div>
-    </div>`;
+    </div>
+    <div><label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:3px">Component</label><input id="np-component" placeholder="e.g. DHT11, Relay, LED" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.82rem;width:100%" /></div>
+    <div><label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:3px">Notes</label><input id="np-notes" placeholder="Optional" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.82rem;width:100%" /></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="savePin('${deviceId}')">Save Pin</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    </div>`);
 }
 async function savePin(deviceId) {
   const pin=document.getElementById('np-pin').value.trim(), label=document.getElementById('np-label').value.trim();
@@ -1428,8 +1482,10 @@ async function savePin(deviceId) {
   if (!pin||!label||!component){toast('Pin, label and component required',false);return;}
   try {
     await api('POST',`/robot/${deviceId}/pins`,{pin,label,direction,component,protocol,notes});
-    toast('Pin saved'); devicePins=await api('GET',`/robot/${deviceId}/pins`);
-    renderHardware(deviceId,devicePins);
+    toast('Pin saved');
+    closeModal();
+    devicePins = await api('GET', `/robot/${deviceId}/pins`);
+    renderHardware(deviceId, devicePins);
   } catch(e){toast(`Error: ${e.message}`,false);}
 }
 async function deletePin(deviceId,pin) {
