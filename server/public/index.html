@@ -55,10 +55,6 @@
     .dev-card .did   { font-size:.68rem; color:var(--muted); font-family:monospace; margin-top:1px; }
     .dev-card .dmeta { display:flex; gap:6px; margin-top:5px; align-items:center; flex-wrap:wrap; }
 
-    .svc-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:9px 11px; margin-bottom:7px; }
-    .svc-card .sname { font-weight:600; font-size:.85rem; display:flex; align-items:center; gap:6px; }
-    .svc-card .surl  { font-size:.72rem; color:var(--muted); margin-top:2px; font-family:monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .svc-card .sactions { display:flex; gap:4px; margin-top:6px; }
     .status-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
     .status-dot.online  { background:var(--green); }
     .status-dot.offline { background:var(--red); }
@@ -146,6 +142,25 @@
     /* ── Toast ───────────────────────────────────────────────────────────── */
     #toast { position:fixed; bottom:18px; right:18px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:8px 14px; font-size:.8rem; opacity:0; transition:opacity .2s; pointer-events:none; z-index:100; }
     #toast.show { opacity:1; }
+    /* ── Service tag ──── */
+    .svc-tag { display:inline-flex; align-items:center; gap:6px; background:var(--surface2); border:1px solid var(--border); border-radius:999px; padding:4px 12px; margin-bottom:6px; cursor:pointer; font-size:.8rem; transition:border-color .15s; }
+    .svc-tag:hover, .svc-tag.active { border-color:var(--accent); color:var(--accent); }
+    .svc-tag .stag-del { color:var(--muted); margin-left:4px; font-size:.75rem; cursor:pointer; }
+    .svc-tag .stag-del:hover { color:var(--red); }
+
+    /* ── Service detail overlay (replaces middle panel content) ──── */
+    #svc-detail { display:none; }
+    #svc-detail.open { display:flex; flex-direction:column; }
+
+    /* ── IO row ────── */
+    .io-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+    .io-row input, .io-row select { flex:1; background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:5px; padding:5px 8px; font-size:.78rem; }
+
+    /* ── Rule row ────── */
+    .rule-row { background:var(--surface2); border-radius:var(--radius); padding:8px 10px; margin-bottom:6px; font-size:.78rem; display:flex; align-items:center; gap:8px; }
+    .rule-row .rule-desc { flex:1; color:var(--text); }
+    .rule-row .rule-del { color:var(--muted); cursor:pointer; font-size:.72rem; }
+    .rule-row .rule-del:hover { color:var(--red); }
   </style>
 </head>
 <body>
@@ -172,10 +187,14 @@
   <div class="col" id="col-middle">
     <div class="col-hdr">
       <span id="middle-title">Select a project</span>
+      <button id="svc-back-btn" class="btn btn-ghost btn-sm" style="display:none" onclick="closeServiceDetail()">← Back</button>
     </div>
+    <!-- Project contents -->
     <div class="col-body" id="middle-body">
       <p style="color:var(--muted);font-size:.82rem;margin-top:8px">Select a project to see its devices and services.</p>
     </div>
+    <!-- Service detail (shown when a service is selected) -->
+    <div class="col-body" id="svc-detail"></div>
   </div>
 
   <!-- Col 3: Device detail -->
@@ -357,19 +376,11 @@ function deviceCard(d, showUnassign, projId) {
 }
 
 function serviceCard(s, projId) {
-  return `
-    <div class="svc-card">
-      <div class="sname">
-        <span class="status-dot ${s.status}"></span>
-        ${s.name}
-      </div>
-      ${s.url ? `<div class="surl"><a href="${s.url}" target="_blank" style="color:var(--accent)">${s.url}</a></div>` : ''}
-      ${s.description ? `<div style="font-size:.72rem;color:var(--muted);margin-top:2px">${s.description}</div>` : ''}
-      <div class="sactions">
-        <button class="btn btn-ghost btn-sm" onclick="showEditService('${projId}','${s.id}','${s.name}','${s.url}','${s.description}')">Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteService('${projId}','${s.id}')">Delete</button>
-      </div>
-    </div>`;
+  const desc = s.description ? `<span style="font-size:.7rem;color:var(--muted);margin-left:4px">${s.description}</span>` : '';
+  return `<span class="svc-tag" onclick="openServiceDetail('${projId}','${s.id}','${s.name}')">
+    🧠 ${s.name}${desc}
+    <span class="stag-del" onclick="event.stopPropagation();deleteService('${projId}','${s.id}')">✕</span>
+  </span>`;
 }
 
 function showAddService(projId) {
@@ -377,7 +388,6 @@ function showAddService(projId) {
   el.innerHTML = `
     <div class="inline-form">
       <div><label>Name</label><input id="sn-name" placeholder="e.g. Tara Brain" /></div>
-      <div><label>URL</label><input id="sn-url" placeholder="http://192.168.0.107:5000" /></div>
       <div><label>Description</label><input id="sn-desc" placeholder="Optional" /></div>
       <div class="row">
         <button class="btn btn-primary btn-sm" onclick="createService('${projId}')">Add</button>
@@ -387,35 +397,12 @@ function showAddService(projId) {
   document.getElementById('sn-name').focus();
 }
 
-function showEditService(projId, sid, name, url, desc) {
-  const el = document.getElementById(`svc-form-${projId}`);
-  el.innerHTML = `
-    <div class="inline-form">
-      <div><label>Name</label><input id="se-name" value="${name}" /></div>
-      <div><label>URL</label><input id="se-url" value="${url}" /></div>
-      <div><label>Description</label><input id="se-desc" value="${desc}" /></div>
-      <div>
-        <label>Status</label>
-        <select id="se-status">
-          <option value="unknown">Unknown</option>
-          <option value="online">Online</option>
-          <option value="offline">Offline</option>
-        </select>
-      </div>
-      <div class="row">
-        <button class="btn btn-primary btn-sm" onclick="updateService('${projId}','${sid}')">Save</button>
-        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('svc-form-${projId}').innerHTML=''">Cancel</button>
-      </div>
-    </div>`;
-}
-
 async function createService(projId) {
   const name = document.getElementById('sn-name').value.trim();
-  const url  = document.getElementById('sn-url').value.trim();
   const desc = document.getElementById('sn-desc').value.trim();
   if (!name) { toast('Name required', false); return; }
   try {
-    await api('POST', `/projects/${projId}/services`, { name, url, description: desc });
+    await api('POST', `/projects/${projId}/services`, { name, description: desc });
     toast('Service added');
     const proj = await api('GET', `/projects/${projId}`);
     renderMiddle(proj);
@@ -423,16 +410,184 @@ async function createService(projId) {
   } catch(e) { toast(`Error: ${e.message}`, false); }
 }
 
-async function updateService(projId, sid) {
-  const name   = document.getElementById('se-name').value.trim();
-  const url    = document.getElementById('se-url').value.trim();
-  const desc   = document.getElementById('se-desc').value.trim();
-  const status = document.getElementById('se-status').value;
-  try {
-    await api('PUT', `/projects/${projId}/services/${sid}`, { name, url, description: desc, status });
-    toast('Service updated');
-    const proj = await api('GET', `/projects/${projId}`);
-    renderMiddle(proj);
+// ── Service detail panel ───────────────────────────────────────────────────
+// Opens in the middle column replacing the project contents.
+// State stored per-service as JSON in localStorage key svc_{id}
+
+let _activeSvcId   = null;
+let _activeProjId  = null;
+let _activeSvcName = null;
+
+function openServiceDetail(projId, svcId, svcName) {
+  _activeSvcId   = svcId;
+  _activeProjId  = projId;
+  _activeSvcName = svcName;
+
+  document.getElementById('middle-body').style.display  = 'none';
+  document.getElementById('svc-detail').classList.add('open');
+  document.getElementById('svc-back-btn').style.display = '';
+  document.getElementById('middle-title').textContent   = svcName;
+
+  const saved = JSON.parse(localStorage.getItem(`svc_${svcId}`) || '{"inputs":[],"outputs":[],"rules":[]}');
+  renderServiceDetail(svcId, saved);
+}
+
+function closeServiceDetail() {
+  _activeSvcId = null;
+  document.getElementById('middle-body').style.display  = '';
+  document.getElementById('svc-detail').classList.remove('open');
+  document.getElementById('svc-back-btn').style.display = 'none';
+  const proj = projects.find(p => p.id === _activeProjId);
+  if (proj) document.getElementById('middle-title').textContent = proj?.name ?? '';
+}
+
+function saveServiceState(svcId, state) {
+  localStorage.setItem(`svc_${svcId}`, JSON.stringify(state));
+}
+
+function loadServiceState(svcId) {
+  return JSON.parse(localStorage.getItem(`svc_${svcId}`) || '{"inputs":[],"outputs":[],"rules":[]}');
+}
+
+function renderServiceDetail(svcId, state) {
+  const el = document.getElementById('svc-detail');
+  el.innerHTML = `
+    <div style="padding:10px;display:flex;flex-direction:column;gap:12px">
+
+      <!-- Inputs -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="section-title" style="margin:0">Inputs</span>
+          <button class="btn btn-ghost btn-sm" onclick="addIO('${svcId}','input')">+ Add</button>
+        </div>
+        <div id="svc-inputs-${svcId}">
+          ${state.inputs.map((inp, i) => ioRow(svcId, 'input', inp, i)).join('') ||
+            '<p style="color:var(--muted);font-size:.75rem">No inputs yet.</p>'}
+        </div>
+      </div>
+
+      <!-- Outputs -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="section-title" style="margin:0">Outputs</span>
+          <button class="btn btn-ghost btn-sm" onclick="addIO('${svcId}','output')">+ Add</button>
+        </div>
+        <div id="svc-outputs-${svcId}">
+          ${state.outputs.map((out, i) => ioRow(svcId, 'output', out, i)).join('') ||
+            '<p style="color:var(--muted);font-size:.75rem">No outputs yet.</p>'}
+        </div>
+      </div>
+
+      <!-- Rules -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="section-title" style="margin:0">Rules</span>
+          <button class="btn btn-ghost btn-sm" onclick="addRule('${svcId}')">+ Add</button>
+        </div>
+        <div id="svc-rules-${svcId}">
+          ${state.rules.map((r, i) => ruleRow(svcId, r, i)).join('') ||
+            '<p style="color:var(--muted);font-size:.75rem">No rules yet.</p>'}
+        </div>
+      </div>
+
+      <div id="svc-add-form-${svcId}"></div>
+    </div>`;
+}
+
+function ioRow(svcId, kind, item, idx) {
+  const badge = kind === 'input'
+    ? '<span class="badge input" style="font-size:.6rem">IN</span>'
+    : '<span class="badge output" style="font-size:.6rem">OUT</span>';
+  return `<div class="rule-row">
+    ${badge}
+    <span class="rule-desc"><strong>${item.name}</strong><span style="color:var(--muted);margin-left:6px;font-size:.72rem">${item.type||''}</span></span>
+    ${item.description ? `<span style="color:var(--muted);font-size:.72rem">${item.description}</span>` : ''}
+    <span class="rule-del" onclick="removeIO('${svcId}','${kind}',${idx})">✕</span>
+  </div>`;
+}
+
+function ruleRow(svcId, rule, idx) {
+  return `<div class="rule-row">
+    <span style="font-size:.9rem">⚙</span>
+    <span class="rule-desc">${rule.description || rule.when + ' → ' + rule.then}</span>
+    <span class="rule-del" onclick="removeRule('${svcId}',${idx})">✕</span>
+  </div>`;
+}
+
+function addIO(svcId, kind) {
+  const el = document.getElementById(`svc-add-form-${svcId}`);
+  el.innerHTML = `
+    <div class="inline-form">
+      <div><label>${kind === 'input' ? 'Input' : 'Output'} Name</label><input id="io-name" placeholder="e.g. temperature, relay_1" /></div>
+      <div class="row">
+        <div><label>Type</label>
+          <select id="io-type">
+            <option value="number">Number</option>
+            <option value="boolean">Boolean</option>
+            <option value="string">String</option>
+            <option value="json">JSON</option>
+          </select>
+        </div>
+        <div><label>Description</label><input id="io-desc" placeholder="Optional" /></div>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary btn-sm" onclick="saveIO('${svcId}','${kind}')">Add</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('svc-add-form-${svcId}').innerHTML=''">Cancel</button>
+      </div>
+    </div>`;
+  document.getElementById('io-name').focus();
+}
+
+function saveIO(svcId, kind) {
+  const name = document.getElementById('io-name').value.trim();
+  const type = document.getElementById('io-type').value;
+  const desc = document.getElementById('io-desc').value.trim();
+  if (!name) { toast('Name required', false); return; }
+  const state = loadServiceState(svcId);
+  state[kind === 'input' ? 'inputs' : 'outputs'].push({ name, type, description: desc });
+  saveServiceState(svcId, state);
+  renderServiceDetail(svcId, state);
+}
+
+function removeIO(svcId, kind, idx) {
+  const state = loadServiceState(svcId);
+  state[kind === 'input' ? 'inputs' : 'outputs'].splice(idx, 1);
+  saveServiceState(svcId, state);
+  renderServiceDetail(svcId, state);
+}
+
+function addRule(svcId) {
+  const el = document.getElementById(`svc-add-form-${svcId}`);
+  el.innerHTML = `
+    <div class="inline-form">
+      <div><label>When (condition)</label><input id="rule-when" placeholder='e.g. temperature > 30' /></div>
+      <div><label>Then (action)</label><input id="rule-then" placeholder='e.g. turn on relay_1' /></div>
+      <div><label>Description</label><input id="rule-desc-in" placeholder="Optional label" /></div>
+      <div class="row">
+        <button class="btn btn-primary btn-sm" onclick="saveRule('${svcId}')">Add</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('svc-add-form-${svcId}').innerHTML=''">Cancel</button>
+      </div>
+    </div>`;
+  document.getElementById('rule-when').focus();
+}
+
+function saveRule(svcId) {
+  const when = document.getElementById('rule-when').value.trim();
+  const then = document.getElementById('rule-then').value.trim();
+  const desc = document.getElementById('rule-desc-in').value.trim();
+  if (!when || !then) { toast('When and Then required', false); return; }
+  const state = loadServiceState(svcId);
+  state.rules.push({ when, then, description: desc });
+  saveServiceState(svcId, state);
+  renderServiceDetail(svcId, state);
+}
+
+function removeRule(svcId, idx) {
+  const state = loadServiceState(svcId);
+  state.rules.splice(idx, 1);
+  saveServiceState(svcId, state);
+  renderServiceDetail(svcId, state);
+}
   } catch(e) { toast(`Error: ${e.message}`, false); }
 }
 
@@ -504,12 +659,10 @@ async function selectDevice(id) {
       <div class="tab active" onclick="switchTab('health')">Health</div>
       <div class="tab" onclick="switchTab('config')">Config</div>
       <div class="tab" onclick="switchTab('hardware')">Hardware</div>
-      <div class="tab" onclick="switchTab('control')">Control</div>
     </div>
     <div id="tab-health"   class="tab-content active"></div>
     <div id="tab-config"   class="tab-content"></div>
     <div id="tab-hardware" class="tab-content"></div>
-    <div id="tab-control"  class="tab-content"></div>
   `;
 
   const [d, pins] = await Promise.all([
@@ -521,11 +674,10 @@ async function selectDevice(id) {
   renderHealth(d);
   renderConfig(id, d);
   renderHardware(id, pins);
-  renderControl(id);
 }
 
 function switchTab(name) {
-  const names = ['health','config','hardware','control'];
+  const names = ['health','config','hardware'];
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', names[i]===name));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
@@ -580,7 +732,7 @@ function renderConfig(deviceId, device) {
         <p style="font-size:.72rem;color:var(--muted)">
           Device type is used for OTA targeting from Pocket — all devices of the same type receive firmware updates together.
         </p>
-        <button class="btn btn-primary btn-sm" onclick="saveDeviceIdentity('${deviceId}')">Save</button>
+        <button class="btn btn-primary btn-sm" style="align-self:flex-start" onclick="saveDeviceIdentity('${deviceId}')">Save</button>
       </div>
     </div>
 
@@ -725,43 +877,6 @@ async function deletePin(deviceId,pin) {
     renderHardware(deviceId,devicePins);
   } catch(e){toast(`Error: ${e.message}`,false);}
 }
-
-// ── Tab: Control ───────────────────────────────────────────────────────────
-function renderControl(deviceId) {
-  document.getElementById('tab-control').innerHTML=`
-    <div class="card"><h3>Display</h3>
-      <div class="face-grid">
-        ${['idle','happy','sad','thinking','sleeping','listening','speaking','error','angry','surprised','wink','love','nervous','excited','confused','bored'].map(f=>
-          `<button class="face-btn" onclick="sendFace('${deviceId}','${f}')">${f}</button>`).join('')}
-      </div>
-    </div>
-    <div class="card"><h3>Speech</h3>
-      <div class="speech-row">
-        <input id="speech-input" placeholder="Text for Tara to say…" />
-        <button class="btn btn-primary" onclick="sendSpeech('${deviceId}')">Say It</button>
-      </div>
-    </div>
-    <div class="card"><h3>Config (JSON)</h3>
-      <textarea id="config-editor">{\n  "version": 1,\n  "displayBrightness": 128,\n  "volume": 70,\n  "idleTimeout": 300\n}</textarea>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="btn btn-primary" onclick="pushConfig('${deviceId}')">Push Config</button>
-        <button class="btn btn-ghost" onclick="fmtConfig()">Format JSON</button>
-      </div>
-    </div>`;
-}
-async function sendFace(id,face){try{await api('POST',`/robot/${id}/display`,{face});toast(`Face: ${face}`);}catch(e){toast(`Error: ${e.message}`,false);}}
-async function sendSpeech(id) {
-  const t = document.getElementById('speech-input').value.trim();
-  if (!t) return;
-  try {
-    await api('POST', `/robot/${id}/speech`, { text: t });
-    toast('Sent');
-    document.getElementById('speech-input').value = '';
-  } catch(e) { toast(`Error: ${e.message}`, false); }
-}
-async function pushConfig(id){let cfg;try{cfg=JSON.parse(document.getElementById('config-editor').value);}catch{toast('Invalid JSON',false);return;}try{const r=await api('PUT',`/robot/${id}/config`,cfg);toast(`Config v${r.version} pushed`);}catch(e){toast(`Error: ${e.message}`,false);}}
-function fmtConfig(){const el=document.getElementById('config-editor');try{el.value=JSON.stringify(JSON.parse(el.value),null,2);}catch{toast('Invalid JSON',false);}}
-
 
 // ── Live pin polling ───────────────────────────────────────────────────────
 async function pollPinState() {
