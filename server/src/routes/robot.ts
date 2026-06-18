@@ -84,6 +84,17 @@ export async function robotRoutes(app: FastifyInstance) {
         return reply.code(201).send({ version });
     });
 
+    // POST /robot/:deviceId/actuator — send a value to an output pin
+    app.post<{
+        Params: { deviceId: string };
+        Body:   { pin: string; value: unknown };
+    }>('/:deviceId/actuator', async (req, reply) => {
+        const { deviceId } = req.params;
+        const { pin, value } = req.body;
+        publishToRobot(deviceId, 'actuator', { pin, value });
+        return reply.code(200).send({ ok: true });
+    });
+
     // POST /robot/ota/broadcast?deviceType=robot — push OTA to all devices of a type
     // Called by Pocket when an OTA release is pushed
     app.post<{

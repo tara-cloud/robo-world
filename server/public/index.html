@@ -411,28 +411,37 @@ async function createService(projId) {
 }
 
 // ── Service detail panel ───────────────────────────────────────────────────
-// Opens in the middle column replacing the project contents.
-// State stored per-service as JSON in localStorage key svc_{id}
+// I/O items map to actual device pins.
+// Input  → live value polled from /robot/:deviceId/pin_state
+// Output → send control (toggle/number/text) → POST /robot/:deviceId/actuator
 
-let _activeSvcId   = null;
-let _activeProjId  = null;
-let _activeSvcName = null;
+let _activeSvcId    = null;
+let _activeProjId   = null;
+let _activeSvcName  = null;
+let _svcDevices     = [];   // devices in the project when service was opened
+let _svcLiveTimer   = null;
 
 function openServiceDetail(projId, svcId, svcName) {
   _activeSvcId   = svcId;
   _activeProjId  = projId;
   _activeSvcName = svcName;
+  _svcDevices    = allDevices.filter(d => d.projectId === projId);
 
   document.getElementById('middle-body').style.display  = 'none';
   document.getElementById('svc-detail').classList.add('open');
   document.getElementById('svc-back-btn').style.display = '';
   document.getElementById('middle-title').textContent   = svcName;
 
-  const saved = JSON.parse(localStorage.getItem(`svc_${svcId}`) || '{"inputs":[],"outputs":[],"rules":[]}');
+  const saved = loadServiceState(svcId);
   renderServiceDetail(svcId, saved);
+
+  // Poll live values every 3 s while service detail is open
+  if (_svcLiveTimer) clearInterval(_svcLiveTimer);
+  _svcLiveTimer = setInterval(() => pollSvcLive(svcId), 3000);
 }
 
 function closeServiceDetail() {
+  if (_svcLiveTimer) { clearInterval(_svcLiveTimer); _svcLiveTimer = null; }
   _activeSvcId = null;
   document.getElementById('middle-body').style.display  = '';
   document.getElementById('svc-detail').classList.remove('open');
@@ -444,37 +453,51 @@ function closeServiceDetail() {
 function saveServiceState(svcId, state) {
   localStorage.setItem(`svc_${svcId}`, JSON.stringify(state));
 }
-
 function loadServiceState(svcId) {
   return JSON.parse(localStorage.getItem(`svc_${svcId}`) || '{"inputs":[],"outputs":[],"rules":[]}');
+}
+
+// Build a flat list of {deviceId, deviceName, pin, label, direction, type} from project devices
+async function getProjectPins() {
+  const results = [];
+  for (const d of _svcDevices) {
+    const pins = await api('GET', `/robot/${d.deviceId}/pins`).catch(() => []);
+    for (const p of pins) {
+      if (p.direction === 'power' || p.direction === 'i2c') continue;
+      results.push({ deviceId: d.deviceId, deviceName: d.deviceName, ...p });
+    }
+  }
+  return results;
 }
 
 function renderServiceDetail(svcId, state) {
   const el = document.getElementById('svc-detail');
   el.innerHTML = `
-    <div style="padding:10px;display:flex;flex-direction:column;gap:12px">
+    <div style="padding:10px;display:flex;flex-direction:column;gap:14px">
 
-      <!-- Inputs -->
+      <!-- Components / Inputs -->
       <div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <span class="section-title" style="margin:0">Inputs</span>
-          <button class="btn btn-ghost btn-sm" onclick="addIO('${svcId}','input')">+ Add</button>
+          <span class="section-title" style="margin:0">Input Components</span>
+          <button class="btn btn-ghost btn-sm" onclick="addIOPin('${svcId}','input')">+ Map</button>
         </div>
         <div id="svc-inputs-${svcId}">
-          ${state.inputs.map((inp, i) => ioRow(svcId, 'input', inp, i)).join('') ||
-            '<p style="color:var(--muted);font-size:.75rem">No inputs yet.</p>'}
+          ${state.inputs.length
+              ? state.inputs.map((inp, i) => ioRow(svcId, 'input', inp, i)).join('')
+              : '<p style="color:var(--muted);font-size:.75rem">No input components mapped.</p>'}
         </div>
       </div>
 
-      <!-- Outputs -->
+      <!-- Components / Outputs -->
       <div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <span class="section-title" style="margin:0">Outputs</span>
-          <button class="btn btn-ghost btn-sm" onclick="addIO('${svcId}','output')">+ Add</button>
+          <span class="section-title" style="margin:0">Output Components</span>
+          <button class="btn btn-ghost btn-sm" onclick="addIOPin('${svcId}','output')">+ Map</button>
         </div>
         <div id="svc-outputs-${svcId}">
-          ${state.outputs.map((out, i) => ioRow(svcId, 'output', out, i)).join('') ||
-            '<p style="color:var(--muted);font-size:.75rem">No outputs yet.</p>'}
+          ${state.outputs.length
+              ? state.outputs.map((out, i) => ioRow(svcId, 'output', out, i)).join('')
+              : '<p style="color:var(--muted);font-size:.75rem">No output components mapped.</p>'}
         </div>
       </div>
 
@@ -485,8 +508,9 @@ function renderServiceDetail(svcId, state) {
           <button class="btn btn-ghost btn-sm" onclick="addRule('${svcId}')">+ Add</button>
         </div>
         <div id="svc-rules-${svcId}">
-          ${state.rules.map((r, i) => ruleRow(svcId, r, i)).join('') ||
-            '<p style="color:var(--muted);font-size:.75rem">No rules yet.</p>'}
+          ${state.rules.length
+              ? state.rules.map((r, i) => ruleRow(svcId, r, i)).join('')
+              : '<p style="color:var(--muted);font-size:.75rem">No rules yet.</p>'}
         </div>
       </div>
 
@@ -498,12 +522,129 @@ function ioRow(svcId, kind, item, idx) {
   const badge = kind === 'input'
     ? '<span class="badge input" style="font-size:.6rem">IN</span>'
     : '<span class="badge output" style="font-size:.6rem">OUT</span>';
+
+  const deviceName = item.deviceName ? `<span style="color:var(--muted);font-size:.7rem">${item.deviceName}</span>` : '';
+  const pinLabel   = item.pinLabel   ? `<code style="font-size:.7rem">${item.pinLabel}</code>` : '';
+  const compName   = `<strong>${item.name || item.component || item.pinLabel}</strong>`;
+  const typeTag    = item.dataType   ? `<span style="color:var(--muted);font-size:.7rem">${item.dataType}</span>` : '';
+
+  let liveOrSend = '';
+  if (kind === 'input') {
+    // Live value display — updated by pollSvcLive
+    liveOrSend = `<span class="live-val" id="svc-live-${item.deviceId}-${item.pinLabel}" style="min-width:40px">—</span>`;
+  } else {
+    // Output send control based on dataType
+    const dt = (item.dataType || 'string').toLowerCase();
+    if (dt === 'boolean') {
+      liveOrSend = `
+        <button class="btn btn-ghost btn-sm" onclick="sendActuator('${item.deviceId}','${item.pinLabel}',1)">ON</button>
+        <button class="btn btn-ghost btn-sm" onclick="sendActuator('${item.deviceId}','${item.pinLabel}',0)">OFF</button>`;
+    } else if (dt === 'number') {
+      liveOrSend = `
+        <input id="out-val-${svcId}-${idx}" type="number" style="width:72px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:3px 6px;font-size:.78rem" placeholder="0" />
+        <button class="btn btn-primary btn-sm" onclick="sendActuatorInput('${item.deviceId}','${item.pinLabel}','${svcId}',${idx},'number')">Send</button>`;
+    } else {
+      liveOrSend = `
+        <input id="out-val-${svcId}-${idx}" type="text" style="width:80px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:3px 6px;font-size:.78rem" placeholder="value" />
+        <button class="btn btn-primary btn-sm" onclick="sendActuatorInput('${item.deviceId}','${item.pinLabel}','${svcId}',${idx},'string')">Send</button>`;
+    }
+  }
+
   return `<div class="rule-row">
-    ${badge}
-    <span class="rule-desc"><strong>${item.name}</strong><span style="color:var(--muted);margin-left:6px;font-size:.72rem">${item.type||''}</span></span>
-    ${item.description ? `<span style="color:var(--muted);font-size:.72rem">${item.description}</span>` : ''}
+    ${badge} ${compName} ${pinLabel} ${deviceName} ${typeTag}
+    <span style="margin-left:auto;display:flex;align-items:center;gap:6px">${liveOrSend}</span>
     <span class="rule-del" onclick="removeIO('${svcId}','${kind}',${idx})">✕</span>
   </div>`;
+}
+
+async function sendActuator(deviceId, pin, value) {
+  try { await api('POST', `/robot/${deviceId}/actuator`, { pin, value }); toast(`${pin} = ${value}`); }
+  catch(e) { toast(`Error: ${e.message}`, false); }
+}
+async function sendActuatorInput(deviceId, pin, svcId, idx, dataType) {
+  const el = document.getElementById(`out-val-${svcId}-${idx}`);
+  if (!el) return;
+  const raw   = el.value.trim();
+  const value = dataType === 'number' ? Number(raw) : raw;
+  await sendActuator(deviceId, pin, value);
+}
+
+async function pollSvcLive(svcId) {
+  const state = loadServiceState(svcId);
+  for (const inp of state.inputs) {
+    if (!inp.deviceId || !inp.pinLabel) continue;
+    try {
+      const cache = await api('GET', `/robot/${inp.deviceId}/pin_state`);
+      const val   = cache[inp.pinLabel];
+      const el    = document.getElementById(`svc-live-${inp.deviceId}-${inp.pinLabel}`);
+      if (el && val !== undefined) el.textContent = String(val);
+    } catch { /* offline */ }
+  }
+}
+
+// Map a device pin to an I/O slot
+async function addIOPin(svcId, kind) {
+  const el = document.getElementById(`svc-add-form-${svcId}`);
+  el.innerHTML = '<p style="color:var(--muted);font-size:.78rem;padding:8px">Loading pins…</p>';
+
+  const allPins = await getProjectPins();
+  const filtered = allPins.filter(p =>
+    kind === 'input' ? p.direction === 'input' : p.direction === 'output'
+  );
+
+  if (!filtered.length) {
+    el.innerHTML = `<p style="color:var(--muted);font-size:.78rem;padding:8px">
+      No ${kind} pins found on project devices. Add pins in the Hardware tab first.
+    </p>`;
+    return;
+  }
+
+  const pinOpts = filtered.map(p =>
+    `<option value="${p.deviceId}|${p.label}|${p.component}|${p.deviceName}">
+      ${p.deviceName} → ${p.label} (${p.component})
+    </option>`
+  ).join('');
+
+  el.innerHTML = `
+    <div class="inline-form">
+      <div>
+        <label>Pin</label>
+        <select id="iopin-select">
+          <option value="">Select…</option>
+          ${pinOpts}
+        </select>
+      </div>
+      <div>
+        <label>Display Name</label>
+        <input id="iopin-name" placeholder="e.g. Room Temperature" />
+      </div>
+      <div>
+        <label>Data Type</label>
+        <select id="iopin-dtype">
+          <option value="number">Number</option>
+          <option value="boolean">Boolean</option>
+          <option value="string">String</option>
+        </select>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary btn-sm" onclick="saveIOPin('${svcId}','${kind}')">Map</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('svc-add-form-${svcId}').innerHTML=''">Cancel</button>
+      </div>
+    </div>`;
+}
+
+function saveIOPin(svcId, kind) {
+  const sel  = document.getElementById('iopin-select').value;
+  const name = document.getElementById('iopin-name').value.trim();
+  const dt   = document.getElementById('iopin-dtype').value;
+  if (!sel) { toast('Select a pin', false); return; }
+  const [deviceId, pinLabel, component, deviceName] = sel.split('|');
+
+  const state = loadServiceState(svcId);
+  const arr   = kind === 'input' ? state.inputs : state.outputs;
+  arr.push({ deviceId, pinLabel, component, deviceName, name: name || component, dataType: dt });
+  saveServiceState(svcId, state);
+  renderServiceDetail(svcId, state);
 }
 
 function ruleRow(svcId, rule, idx) {
@@ -514,40 +655,7 @@ function ruleRow(svcId, rule, idx) {
   </div>`;
 }
 
-function addIO(svcId, kind) {
-  const el = document.getElementById(`svc-add-form-${svcId}`);
-  el.innerHTML = `
-    <div class="inline-form">
-      <div><label>${kind === 'input' ? 'Input' : 'Output'} Name</label><input id="io-name" placeholder="e.g. temperature, relay_1" /></div>
-      <div class="row">
-        <div><label>Type</label>
-          <select id="io-type">
-            <option value="number">Number</option>
-            <option value="boolean">Boolean</option>
-            <option value="string">String</option>
-            <option value="json">JSON</option>
-          </select>
-        </div>
-        <div><label>Description</label><input id="io-desc" placeholder="Optional" /></div>
-      </div>
-      <div class="row">
-        <button class="btn btn-primary btn-sm" onclick="saveIO('${svcId}','${kind}')">Add</button>
-        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('svc-add-form-${svcId}').innerHTML=''">Cancel</button>
-      </div>
-    </div>`;
-  document.getElementById('io-name').focus();
-}
 
-function saveIO(svcId, kind) {
-  const name = document.getElementById('io-name').value.trim();
-  const type = document.getElementById('io-type').value;
-  const desc = document.getElementById('io-desc').value.trim();
-  if (!name) { toast('Name required', false); return; }
-  const state = loadServiceState(svcId);
-  state[kind === 'input' ? 'inputs' : 'outputs'].push({ name, type, description: desc });
-  saveServiceState(svcId, state);
-  renderServiceDetail(svcId, state);
-}
 
 function removeIO(svcId, kind, idx) {
   const state = loadServiceState(svcId);
