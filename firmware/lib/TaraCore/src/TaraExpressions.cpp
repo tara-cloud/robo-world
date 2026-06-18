@@ -1,5 +1,9 @@
 #include "TaraExpressions.h"
 
+// Out-of-line definitions required by C++14 for constexpr static members
+constexpr TaraExpressions::Eye TaraExpressions::LEFT;
+constexpr TaraExpressions::Eye TaraExpressions::RIGHT;
+
 // ─── Constructor ────────────────────────────────────────────────────────────
 
 TaraExpressions::TaraExpressions(IDisplay* display) : _d(display) {

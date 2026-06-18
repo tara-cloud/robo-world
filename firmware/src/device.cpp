@@ -2,22 +2,26 @@
 // Display: SH1106 128x64 via U8g2 SW_I2C (SDA=21, SCL=22)
 //
 // Faces are runtime JSON received via MQTT — no hardcoded graphics.
-// Command format (sent on tara/robot/{id}/display):
-//   { "cmds": [ {"t":"disc","x":38,"y":26,"r":9}, {"t":"hline","x":52,"y":46,"w":24}, ... ] }
-// Supported types: disc, circle, hline, vline, pixel, rbox, rect, text, clear
+// Idle animation is handled by TaraExpressions via the U8g2Display adapter.
 
 #include "TaraCore.h"
 #include <ArduinoJson.h>
 #include <U8g2lib.h>
 #include <HTTPUpdate.h>
 #include <WiFiClient.h>
+#include "U8g2Display.h"
+#include "TaraExpressions.h"
 
-// ─── Display ──────────────────────────────────────────────────────────────────
+// ─── Display + TaraExpressions ───────────────────────────────────────────────
 static const int I2C_SCL = 22;
 static const int I2C_SDA = 21;
 
 static U8G2_SH1106_128X64_NONAME_F_SW_I2C
     u8g2(U8G2_R0, I2C_SCL, I2C_SDA, U8X8_PIN_NONE);
+
+// Adapter wraps u8g2 into IDisplay so TaraExpressions stays display-agnostic
+static U8g2Display<U8G2_SH1106_128X64_NONAME_F_SW_I2C> displayAdapter(&u8g2);
+static TaraExpressions taraFace(&displayAdapter);
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 static int  displayBrightness = 128;
@@ -25,8 +29,8 @@ static int  volume            = 70;
 static int  idleTimeout       = 300;
 
 // ─── Emotion state ────────────────────────────────────────────────────────────
-struct EmotionState { String state = "idle"; int energy = 50; unsigned long since = 0; };
-static EmotionState emotion;
+struct RobotEmotionState { String state = "idle"; int energy = 50; unsigned long since = 0; };
+static RobotEmotionState emotion;
 
 // ─── Cached face JSON per state (loaded from server at boot via config) ────────
 // Keys match RobotState names; stored as compact JSON strings
@@ -126,24 +130,7 @@ void setState(RobotState s) {
 }
 
 void renderIdleFace() {
-    // Blink by briefly swapping to a closed-eyes variant then back
-    static unsigned long lastBlink = 0;
-    static bool isBlinking = false;
-    unsigned long now = millis();
-
-    if (!isBlinking && now - lastBlink > 4000) {
-        isBlinking = true;
-        lastBlink  = now;
-        // Closed eyes: hlines instead of discs
-        u8g2.clearBuffer();
-        u8g2.drawHLine(29, 26, 18);
-        u8g2.drawHLine(81, 26, 18);
-        u8g2.drawHLine(52, 46, 24);
-        u8g2.sendBuffer();
-    } else if (isBlinking && now - lastBlink > 120) {
-        isBlinking = false;
-        renderState(STATE_IDLE);
-    }
+    taraFace.animateIdle();
 }
 
 void applyRobotConfig(const JsonDocument& doc) {
