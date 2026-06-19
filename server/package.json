@@ -1,6 +1,6 @@
 {
-  "name": "electro-server",
-  "version": "1.1.0",
+  "name": "electron-server",
+  "version": "1.2.8",
   "private": true,
   "scripts": {
     "dev": "tsx watch src/index.ts",

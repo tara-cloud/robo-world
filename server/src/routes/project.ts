@@ -16,11 +16,16 @@ export async function projectRoutes(app: FastifyInstance) {
     });
 
     // POST /projects
-    app.post<{ Body: { name: string; description?: string } }>(
+    app.post<{ Body: { name: string; projectId?: string; description?: string } }>(
         '/',
         async (req, reply) => {
+            const { name, projectId, description } = req.body;
             const proj = await db.project.create({
-                data: { name: req.body.name, description: req.body.description ?? '' },
+                data: {
+                    name,
+                    description: description ?? '',
+                    ...(projectId ? { projectId } : {}),
+                },
             });
             return reply.code(201).send(proj);
         }
@@ -47,6 +52,24 @@ export async function projectRoutes(app: FastifyInstance) {
         const proj = await db.project.update({
             where: { id: req.params.id },
             data:  { name: req.body.name, description: req.body.description },
+        });
+        return reply.code(200).send(proj);
+    });
+
+    // PUT /projects/:id/mqtt-config
+    app.put<{
+        Params: { id: string };
+        Body:   { mqttHost: string; mqttPort?: number; otaTopic?: string; configTopic?: string };
+    }>('/:id/mqtt-config', async (req, reply) => {
+        const { mqttHost, mqttPort, otaTopic, configTopic } = req.body;
+        const proj = await db.project.update({
+            where: { id: req.params.id },
+            data: {
+                mqttHost,
+                ...(mqttPort    === undefined ? {} : { mqttPort }),
+                ...(otaTopic    === undefined ? {} : { otaTopic }),
+                ...(configTopic === undefined ? {} : { configTopic }),
+            },
         });
         return reply.code(200).send(proj);
     });
@@ -136,4 +159,35 @@ export async function projectRoutes(app: FastifyInstance) {
             return reply.code(200).send({ ok: true });
         }
     );
+
+    // GET /projects/:id/logs?limit=100&level=INFO&device=Tara
+    app.get<{
+        Params:      { id: string };
+        Querystring: { limit?: string; level?: string; device?: string };
+    }>('/:id/logs', async (req) => {
+        const proj = await db.project.findUnique({ where: { id: req.params.id } });
+        if (!proj) return [];
+
+        const limit  = Math.min(parseInt(req.query.limit  ?? '100'), 500);
+        const level  = req.query.level;
+        const device = req.query.device;
+
+        return db.deviceLog.findMany({
+            where: {
+                projectId:  proj.projectId,
+                ...(level  ? { level }             : {}),
+                ...(device ? { deviceName: device } : {}),
+            },
+            orderBy: { createdAt: 'desc' },
+            take:    isNaN(limit) ? 100 : limit,
+        });
+    });
+
+    // DELETE /projects/:id/logs — clear all logs for project
+    app.delete<{ Params: { id: string } }>('/:id/logs', async (req, reply) => {
+        const proj = await db.project.findUnique({ where: { id: req.params.id } });
+        if (!proj) return reply.code(404).send({ error: 'Not found' });
+        await db.deviceLog.deleteMany({ where: { projectId: proj.projectId } });
+        return reply.code(200).send({ ok: true });
+    });
 }

@@ -1,0 +1,42 @@
+# Electron Helm Chart — default values
+
+image:
+  repository: pmananthu/electron-server
+  tag: "1.2.6"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+  type: NodePort
+  port: 4000
+  nodePort: 30400
+
+# MQTT (Mosquitto) — devices connect on port 1883 directly
+mosquitto:
+  image: eclipse-mosquitto:2
+  hostPort: 1883
+
+# PostgreSQL
+postgres:
+  image: postgres:16-alpine
+  database: electron
+  user: electron_user
+  password: electron_secure_pass
+  dataPath: /var/lib/electron/postgres
+  storageSize: 2Gi
+
+# App config
+app: {}
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+probes:
+  initialDelaySeconds: 15
+  periodSeconds: 30

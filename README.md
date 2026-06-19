@@ -1,4 +1,4 @@
-# Electro
+# Electron
 
 ESP32 device firmware + management server for the Tara robot ecosystem.
 

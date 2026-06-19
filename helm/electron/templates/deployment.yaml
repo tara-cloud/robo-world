@@ -1,0 +1,190 @@
+# ── PostgreSQL ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: electron-postgres
+  namespace: electron
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: electron-postgres
+  template:
+    metadata:
+      labels:
+        app: electron-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.database | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.user | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: electron-secrets
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.postgres.user | quote }}]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      volumes:
+        - name: pgdata
+          hostPath:
+            path: {{ .Values.postgres.dataPath }}
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: electron-postgres
+  namespace: electron
+spec:
+  selector:
+    app: electron-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+# ── Mosquitto MQTT broker ─────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: electron-mosquitto
+  namespace: electron
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: electron-mosquitto
+  template:
+    metadata:
+      labels:
+        app: electron-mosquitto
+    spec:
+      containers:
+        - name: mosquitto
+          image: {{ .Values.mosquitto.image }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 1883
+              hostPort: {{ .Values.mosquitto.hostPort }}
+          volumeMounts:
+            - name: mosquitto-config
+              mountPath: /mosquitto/config/mosquitto.conf
+              subPath: mosquitto.conf
+      volumes:
+        - name: mosquitto-config
+          configMap:
+            name: electron-mosquitto-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: electron-mosquitto-config
+  namespace: electron
+data:
+  mosquitto.conf: |
+    listener 1883
+    allow_anonymous true
+    persistence false
+    log_type error
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: electron-mosquitto
+  namespace: electron
+spec:
+  selector:
+    app: electron-mosquitto
+  ports:
+    - port: 1883
+      targetPort: 1883
+---
+# ── Electron Server ────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: electron
+  namespace: electron
+  labels:
+    app: electron
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: electron
+  template:
+    metadata:
+      labels:
+        app: electron
+        version: {{ .Values.image.tag | quote }}
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc electron-postgres 5432 -w 1 </dev/null; do echo waiting; sleep 3; done']
+      containers:
+        - name: electron
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 4000
+              hostPort: {{ .Values.service.nodePort }}
+          env:
+            - name: PORT
+              value: "4000"
+            - name: MQTT_URL
+              value: "mqtt://electron-mosquitto:1883"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: electron-secrets
+                  key: DATABASE_URL
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu | quote }}
+              memory: {{ .Values.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu | quote }}
+              memory: {{ .Values.resources.limits.memory | quote }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: {{ .Values.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: electron
+  namespace: electron
+  labels:
+    app: electron
+spec:
+  selector:
+    app: electron
+  type: {{ .Values.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
+      nodePort: {{ .Values.service.nodePort }}

@@ -23,14 +23,30 @@ export async function deviceRoutes(app: FastifyInstance) {
         deviceType: string;
         firmwareVersion: string;
         ip?: string;
+        projectId?: string;
         components?: ComponentInfo[];
     } }>('/register', async (req, reply) => {
-        const { deviceId, deviceName, deviceType, firmwareVersion, ip, components } = req.body;
+        const { deviceId, deviceName, deviceType, firmwareVersion, ip, projectId, components } = req.body;
+
+        // Resolve projectId slug → internal id; ignore if not found
+        let validProjectId: string | undefined;
+        if (projectId) {
+            const project = await db.project.findUnique({ where: { projectId } });
+            validProjectId = project?.id;
+        }
 
         const device = await db.device.upsert({
             where:  { deviceId },
-            update: { deviceName, deviceType, firmwareVersion, lastSeen: new Date(), ...(ip ? { ipAddress: ip } : {}) },
-            create: { deviceId, deviceName, deviceType, firmwareVersion, ...(ip ? { ipAddress: ip } : {}) },
+            update: {
+                deviceName, deviceType, firmwareVersion, lastSeen: new Date(),
+                ...(ip             ? { ipAddress: ip }          : {}),
+                ...(validProjectId ? { projectId: validProjectId } : {}),
+            },
+            create: {
+                deviceId, deviceName, deviceType, firmwareVersion,
+                ...(ip             ? { ipAddress: ip }          : {}),
+                ...(validProjectId ? { projectId: validProjectId } : {}),
+            },
         });
 
         if (components && components.length > 0) {
@@ -51,7 +67,13 @@ export async function deviceRoutes(app: FastifyInstance) {
             }
         }
 
-        return reply.code(200).send({ id: device.id, deviceId: device.deviceId });
+        const deviceWithProject = await db.device.findUnique({
+            where:   { deviceId },
+            include: { project: true },
+        });
+
+        const slug = deviceWithProject?.project?.projectId ?? null;
+        return reply.code(200).send({ id: device.id, deviceId: device.deviceId, projectId: slug });
     });
 
     // POST /device/heartbeat
@@ -73,5 +95,19 @@ export async function deviceRoutes(app: FastifyInstance) {
         });
 
         return reply.code(200).send({ ok: true });
+    });
+
+    // GET /device/mqtt-config/:deviceId
+    // Called by firmware after registration — returns project MQTT config
+    app.get<{ Params: { deviceId: string } }>('/mqtt-config/:deviceId', async (req, reply) => {
+        const device = await db.device.findUnique({
+            where:   { deviceId: req.params.deviceId },
+            include: { project: true },
+        });
+        if (!device) return reply.code(404).send({ error: 'device not found' });
+        if (!device.project) return reply.code(404).send({ error: 'device not assigned to a project' });
+
+        const { mqttHost, mqttPort, otaTopic, configTopic } = device.project;
+        return reply.code(200).send({ mqttHost, mqttPort, otaTopic, configTopic });
     });
 }

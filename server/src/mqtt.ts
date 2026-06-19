@@ -20,9 +20,16 @@ export function initMqtt() {
         client!.subscribe('tara/robot/+/heartbeat');
         client!.subscribe('tara/robot/+/sensor');
         client!.subscribe('tara/robot/+/pin_state');
+        client!.subscribe('+/log');          // projectId.log
     });
 
     client.on('message', async (topic, payload) => {
+        // projectId.log  (dot-separated, not slash)
+        if (topic.endsWith('/log')) {
+            await handleLogMessage(topic, payload.toString());
+            return;
+        }
+
         const parts    = topic.split('/'); // tara/robot/{id}/{kind}
         const deviceId = parts[2];
         const kind     = parts[3];
@@ -32,6 +39,36 @@ export function initMqtt() {
     });
 
     client.on('error', (err) => console.error('[MQTT] error', err));
+}
+
+async function handleLogMessage(topic: string, raw: string) {
+    try {
+        const body = JSON.parse(raw);
+        // topic = "{projectId}/log" — use as authoritative source
+        const projectId  = topic.split('/')[0] || (body.projectID as string);
+        const deviceName = body.deviceName as string;
+        const level      = (body.level      as string) || 'INFO';
+        const logger     = (body.logger     as string) || topic;
+        const message    = (body.message    as string) || raw;
+
+        if (!projectId || !deviceName) return;
+
+        await db.deviceLog.create({
+            data: { projectId, deviceName, level, logger, message },
+        });
+
+        // Keep max 500 logs per project — delete oldest beyond that
+        const count = await db.deviceLog.count({ where: { projectId } });
+        if (count > 500) {
+            const oldest = await db.deviceLog.findMany({
+                where:   { projectId },
+                orderBy: { createdAt: 'asc' },
+                take:    count - 500,
+                select:  { id: true },
+            });
+            await db.deviceLog.deleteMany({ where: { id: { in: oldest.map(l => l.id) } } });
+        }
+    } catch { /* malformed payload */ }
 }
 
 async function handleMessage(deviceId: string, kind: string, raw: string) {

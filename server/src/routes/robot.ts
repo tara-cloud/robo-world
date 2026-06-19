@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db';
-import { publishToRobot } from '../mqtt';
+import { publishToRobot, getMqtt } from '../mqtt';
 import { buildFacesMap } from './face';
 
 export async function robotRoutes(app: FastifyInstance) {
@@ -22,6 +22,7 @@ export async function robotRoutes(app: FastifyInstance) {
                 include: {
                     configs:  { orderBy: { createdAt: 'desc' }, take: 5 },
                     readings: { orderBy: { recordedAt: 'desc' }, take: 20 },
+                    project:  true,
                 },
             });
             if (!device) return reply.code(404).send({ error: 'Not found' });
@@ -96,93 +97,203 @@ export async function robotRoutes(app: FastifyInstance) {
     });
 
     // POST /robot/ota/broadcast?deviceType=robot — push OTA to all devices of a type
-    // Called by Pocket when an OTA release is pushed
+    // Caller (e.g. Pocket) sends the complete ready-to-use download URL
     app.post<{
         Querystring: { deviceType?: string };
-        Body:        { version: string; url: string };
+        Body:        { version: string; url: string; apiKey?: string };
     }>('/ota/broadcast', async (req, reply) => {
         const deviceType = req.query.deviceType ?? 'robot';
-        const { version, url } = req.body;
+        const { version, url, apiKey } = req.body;
 
         if (!version || !url) return reply.code(400).send({ error: 'version and url required' });
 
-        // Find all registered devices of this type
         const devices = await db.device.findMany({
-            where: { deviceType },
-            select: { deviceId: true },
+            where:   { deviceType },
+            include: { project: { select: { projectId: true } } },
         });
 
         for (const d of devices) {
-            publishToRobot(d.deviceId, 'ota', { version, url }, 1);
+            if (!d.project?.projectId) continue;
+            const topic   = `${d.project.projectId}.${d.deviceName}.ota`;
+            const payload: Record<string, string> = { version, url };
+            if (apiKey) payload.apiKey = apiKey;
+            getMqtt().publish(topic, JSON.stringify(payload), { qos: 1 });
         }
 
         return reply.code(200).send({ pushed: devices.length, version, url });
     });
 
-    // GET /robot/:deviceId/ota-check — compare device firmware version against latest in Pocket
-    app.get<{ Params: { deviceId: string } }>(
+    // GET /robot/:deviceId/ota-check — check Pocket for a newer version
+    // Query: artifactoryUrl, apiKey, repo, artifact (artifact name, e.g. tara-robot)
+    app.get<{
+        Params:      { deviceId: string };
+        Querystring: { artifactoryUrl?: string; apiKey?: string; repo?: string; artifact?: string };
+    }>(
         '/:deviceId/ota-check',
         async (req, reply) => {
             const device = await db.device.findUnique({ where: { deviceId: req.params.deviceId } });
             if (!device) return reply.code(404).send({ error: 'device not found' });
 
-            const pocketUrl = process.env.POCKET_URL ?? 'http://192.168.0.107:30600';
+            const artifactoryUrl = (req.query.artifactoryUrl ?? '').replace(/\/$/, '');
+            const apiKey         = req.query.apiKey   ?? '';
+            const repo           = req.query.repo     ?? 'electro-firmware';
+            const artifactName   = req.query.artifact ?? 'tara-robot';
 
-            // Ask Pocket for the latest OTA release for this device type
-            type OTARelease = { id: number; version: string; releaseNotes: string; artifact: { name: string } };
-            let releases: OTARelease[] = [];
+            if (!artifactoryUrl) return reply.code(400).send({ error: 'artifactoryUrl required' });
+
+            // Use Pocket's /api/repos/:name/artifacts/latest endpoint
+            type LatestResponse = {
+                update: boolean;
+                version?: string;
+                fileName?: string;
+                checksum?: string;
+                size?: number;
+                url?: string;
+            };
+
+            let latest: LatestResponse;
             try {
-                const res = await fetch(`${pocketUrl}/api/ota`);
-                if (res.ok) releases = (await res.json()) as OTARelease[];
+                const headers: Record<string, string> = {};
+                if (apiKey) headers['X-Pocket-Token'] = apiKey;
+                const res = await fetch(
+                    `${artifactoryUrl}/api/repos/${repo}/artifacts/latest?artifact=${encodeURIComponent(artifactName)}&current=${encodeURIComponent(device.firmwareVersion)}`,
+                    { headers }
+                );
+                if (!res.ok) return reply.code(502).send({ error: `Pocket returned ${res.status}` });
+                latest = (await res.json()) as LatestResponse;
             } catch {
-                return reply.code(502).send({ error: 'Cannot reach Pocket' });
+                return reply.code(502).send({ error: `Cannot reach ${artifactoryUrl}` });
             }
 
-            // Find the latest release matching this device type
-            const matching = releases
-                .filter(r => r.artifact?.name?.includes(device.deviceType) ||
-                             device.deviceType === 'robot')
-                .sort((a, b) => b.id - a.id);
-
-            if (!matching.length) {
+            if (!latest.update) {
                 return reply.send({ available: false, currentVersion: device.firmwareVersion });
             }
 
-            const latest = matching[0];
-            const available = latest.version !== device.firmwareVersion;
+            // Build full download URL from the url field Pocket returns
+            const downloadUrl = latest.url?.startsWith('http')
+                ? latest.url
+                : `${artifactoryUrl}${latest.url}`;
+
             return reply.send({
-                available,
-                currentVersion:  device.firmwareVersion,
-                latestVersion:   latest.version,
-                releaseNotes:    latest.releaseNotes,
-                otaReleaseId:    latest.id,
+                available:      true,
+                currentVersion: device.firmwareVersion,
+                latestVersion:  latest.version,
+                downloadUrl,
+                checksum:       latest.checksum,
+                size:           latest.size,
             });
         }
     );
 
-    // POST /robot/:deviceId/push-ota — trigger OTA push for a specific device via Pocket release
+    // POST /robot/:deviceId/ota-check-push — check latest and if available push OTA to device in one step
     app.post<{
         Params: { deviceId: string };
-        Body:   { otaReleaseId: number };
-    }>('/:deviceId/push-ota', async (req, reply) => {
-        const { otaReleaseId } = req.body;
+        Body:   { artifactoryUrl: string; apiKey?: string; repo?: string; artifact?: string };
+    }>('/:deviceId/ota-check-push', async (req, reply) => {
+        const device = await db.device.findUnique({
+            where:   { deviceId: req.params.deviceId },
+            include: { project: true },
+        });
+        if (!device) return reply.code(404).send({ error: 'device not found' });
+        if (!device.project) return reply.code(400).send({ error: 'device not assigned to a project' });
 
-        const pocketUrl   = process.env.POCKET_URL  ?? 'http://192.168.0.107:30600';
-        const pocketToken = process.env.POCKET_TOKEN ?? '';
+        const { artifactoryUrl: rawUrl, apiKey = '', repo = 'electro-firmware', artifact = 'tara-robot' } = req.body;
+        const artifactoryUrl = rawUrl.replace(/\/$/, '');
 
-        const res = await fetch(`${pocketUrl}/api/ota/${otaReleaseId}/push`, {
-            method:  'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(pocketToken ? { 'X-Pocket-Token': pocketToken } : {}),
-            },
-            body: '{}',
-        }).catch(() => null);
-
-        if (res?.ok !== true) {
-            return reply.code(502).send({ error: 'Pocket OTA push failed' });
+        type LatestResponse = { update: boolean; version?: string; url?: string };
+        let latest: LatestResponse;
+        try {
+            const headers: Record<string, string> = {};
+            if (apiKey) headers['X-Pocket-Token'] = apiKey;
+            const res = await fetch(
+                `${artifactoryUrl}/api/repos/${repo}/artifacts/latest?artifact=${encodeURIComponent(artifact)}&current=${encodeURIComponent(device.firmwareVersion)}`,
+                { headers }
+            );
+            if (!res.ok) return reply.code(502).send({ error: `Pocket returned ${res.status}` });
+            latest = (await res.json()) as LatestResponse;
+        } catch {
+            return reply.code(502).send({ error: `Cannot reach ${artifactoryUrl}` });
         }
 
-        return reply.code(200).send({ ok: true });
+        if (!latest.update || !latest.version || !latest.url) {
+            return reply.send({ pushed: false, currentVersion: device.firmwareVersion });
+        }
+
+        const downloadUrl = latest.url.startsWith('http') ? latest.url : `${artifactoryUrl}${latest.url}`;
+        const topic   = `${device.project.projectId}.${device.deviceName}.ota`;
+        const payload: Record<string, string> = { version: latest.version, url: downloadUrl };
+        if (apiKey) payload.apiKey = apiKey;
+
+        getMqtt().publish(topic, JSON.stringify(payload), { qos: 1 });
+        return reply.code(200).send({ pushed: true, topic, version: latest.version, url: downloadUrl });
+    });
+
+
+    // POST /robot/:deviceId/ota-push — publish OTA command directly via MQTT
+    // Topic: {projectId}.{deviceName}.ota  payload: { version, url, apiKey }
+    app.post<{
+        Params: { deviceId: string };
+        Body:   { version: string; url: string; apiKey?: string };
+    }>('/:deviceId/ota-push', async (req, reply) => {
+        const device = await db.device.findUnique({
+            where:   { deviceId: req.params.deviceId },
+            include: { project: true },
+        });
+        if (!device) return reply.code(404).send({ error: 'device not found' });
+        if (!device.project) return reply.code(400).send({ error: 'device not assigned to a project' });
+
+        const { version, url, apiKey } = req.body;
+        if (!version || !url) return reply.code(400).send({ error: 'version and url required' });
+
+        const topic = `${device.project.projectId}.${device.deviceName}.ota`;
+        const payload: Record<string, string> = { version, url };
+        if (apiKey) payload.apiKey = apiKey;
+
+        getMqtt().publish(topic, JSON.stringify(payload), { qos: 1 });
+        return reply.code(200).send({ ok: true, topic, version });
+    });
+
+    // POST /robot/:deviceId/device-config — publish device config packet via MQTT
+    // Topic: {projectId}.{deviceName}.config
+    app.post<{
+        Params: { deviceId: string };
+        Body: {
+            deviceName?: string;
+            deviceType?: string;
+            healthcheck?: { enabled: boolean; frequency: number };
+        };
+    }>('/:deviceId/device-config', async (req, reply) => {
+        const device = await db.device.findUnique({
+            where:   { deviceId: req.params.deviceId },
+            include: { project: true },
+        });
+        if (!device) return reply.code(404).send({ error: 'device not found' });
+        if (!device.project) return reply.code(400).send({ error: 'device not assigned to a project' });
+
+        const { deviceName, deviceType, healthcheck } = req.body;
+
+        // Persist identity changes if provided
+        if (deviceName || deviceType) {
+            await db.device.update({
+                where: { deviceId: req.params.deviceId },
+                data: {
+                    ...(deviceName ? { deviceName } : {}),
+                    ...(deviceType ? { deviceType } : {}),
+                },
+            });
+        }
+
+        const payload = {
+            projectID:   device.project.projectId,
+            projectName: device.project.name,
+            deviceName:  deviceName ?? device.deviceName,
+            deviceType:  deviceType ?? device.deviceType,
+            healthcheck: healthcheck ?? { enabled: false, frequency: 60 },
+        };
+
+        const topic = `${device.project.projectId}.${payload.deviceName}.config`;
+        getMqtt().publish(topic, JSON.stringify(payload), { qos: 1 });
+
+        return reply.code(200).send({ ok: true, topic, payload });
     });
 }

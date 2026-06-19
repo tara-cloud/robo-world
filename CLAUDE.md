@@ -1,4 +1,4 @@
-# Electro — Tara Device Management Server
+# Electron — Tara Device Management Server
 
 ## Overview
 
@@ -12,7 +12,7 @@ OTA, sensor readings, and MQTT bridging.
 ## Repository Structure
 
 ```text
-electro/
+electron/
 └── server/                 # Fastify + Prisma device management API
     ├── src/
     │   ├── index.ts
@@ -69,16 +69,16 @@ npm run dev
 ```bash
 # Build and push server image (ARM64)
 docker buildx build --platform linux/arm64 \
-  -t pmananthu/electro-server:VERSION --push server/
+  -t pmananthu/electron-server:VERSION --push server/
 
 # On Pi
-docker compose -f /DATA/AppData/electro/docker-compose.yml up -d
+docker compose -f /DATA/AppData/electron/docker-compose.yml up -d
 ```
 
 ## Environment Variables (server)
 
 ```text
-DATABASE_URL=postgresql://electro_user:<DB_PASSWORD>@postgres:5432/electro
+DATABASE_URL=postgresql://electron_user:<DB_PASSWORD>@postgres:5432/electron
 PORT=4000
 MQTT_URL=mqtt://<host>:1883
 ```

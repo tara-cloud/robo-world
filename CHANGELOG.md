@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the Electro project will be documented here.
+All notable changes to the Electron project will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
@@ -9,7 +9,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [1.0.0] — 2026-06-17
 
 ### Added
-- Initial release of Electro — Tara ESP32 Device Framework
+- Initial release of Electron — Tara ESP32 Device Framework
 - **Firmware** (ESP32 Dev Module)
   - Shared `TaraCore` library: WiFi manager, device registration (HTTP), MQTT connect/reconnect, config manager (NVS)
   - MQTT topics: `config`, `display`, `emotion`, `speech`, `heartbeat`, `sensor`, `ota`
@@ -40,4 +40,4 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **Infrastructure**
   - `docker-compose.yml` with PostgreSQL 16 + Mosquitto 2 + server
   - `mosquitto.conf` minimal broker config
-  - ARM64 Docker image: `pmananthu/electro-server`
+  - ARM64 Docker image: `pmananthu/electron-server`

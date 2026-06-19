@@ -11,12 +11,17 @@ datasource db {
 }
 
 model Project {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  description String    @default("")
-  createdAt   DateTime  @default(now())
-  devices     Device[]
-  services    Service[]
+  id               String    @id @default(cuid())
+  projectId        String    @unique @default(cuid())
+  name             String    @unique
+  description      String    @default("")
+  mqttHost         String    @default("")
+  mqttPort         Int       @default(1883)
+  otaTopic         String    @default("ota")
+  configTopic      String    @default("taraConfig")
+  createdAt        DateTime  @default(now())
+  devices          Device[]
+  services         Service[]
 }
 
 model Service {
@@ -107,6 +112,19 @@ model PipelineRule {
   createdAt DateTime @default(now())
 }
 
+model DeviceLog {
+  id         String   @id @default(cuid())
+  projectId  String
+  deviceName String
+  timestamp  DateTime @default(now())
+  level      String
+  logger     String
+  message    String
+  createdAt  DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}
+
 model Face {
   id        String   @id @default(cuid())
   name      String   @unique
@@ -114,4 +132,11 @@ model Face {
   cmds      Json
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
+}
+
+// Key/value store for server-side settings (e.g. logTtlDays)
+model ServerSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

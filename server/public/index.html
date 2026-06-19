@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Electro</title>
+  <title>Electron</title>
   <style>
     :root {
       --bg:      #0f1117;
@@ -29,20 +29,45 @@
     header h1 { font-size:1rem; font-weight:700; letter-spacing:.04em; color:var(--accent); }
     .hdr-right { margin-left:auto; display:flex; gap:8px; }
 
-    /* ── 3-column layout ─────────────────────────────────────────────────── */
-    main { display:grid; grid-template-columns:180px 250px 1fr; height:calc(100vh - 50px); overflow:hidden; position:relative; }
+    /* ── Views ───────────────────────────────────────────────────────────── */
+    #view-home    { display:flex; flex-direction:column; height:calc(100vh - 50px); overflow-y:auto; }
+    #view-project { display:none; height:calc(100vh - 50px); overflow:hidden; }
+    #view-project.active { display:grid; grid-template-columns:220px 1fr; }
 
-    /* ── Shared column styles ─────────────────────────────────────────────── */
+    /* ── Home view ───────────────────────────────────────────────────────── */
+    .home-body { padding:24px 28px; flex:1; }
+    .home-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:14px; margin-top:16px; }
+    .proj-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; cursor:pointer; transition:border-color .15s,box-shadow .15s; }
+    .proj-card:hover { border-color:var(--accent); box-shadow:0 4px 16px rgba(108,99,255,.15); }
+    .proj-card .pname { font-weight:600; font-size:.95rem; margin-bottom:6px; }
+    .proj-card .pdesc { font-size:.75rem; color:var(--muted); margin-bottom:10px; min-height:18px; }
+    .proj-card .pmeta { display:flex; gap:10px; font-size:.7rem; color:var(--muted); }
+    .proj-card .pid   { font-size:.68rem; color:var(--muted); font-family:monospace; margin-top:8px; padding-top:8px; border-top:1px solid var(--border); }
+
+    /* ── Project view — left nav ─────────────────────────────────────────── */
+    #proj-nav { border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
+    #proj-nav-header { padding:12px 14px 8px; border-bottom:1px solid var(--border); flex-shrink:0; }
+    #proj-nav-title  { font-weight:700; font-size:.9rem; margin-bottom:2px; }
+    #proj-nav-id     { font-size:.68rem; color:var(--muted); font-family:monospace; }
+    #proj-nav-body   { flex:1; overflow-y:auto; padding:8px 0; }
+    .nav-section { padding:8px 14px 4px; font-size:.62rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+    .nav-item { display:flex; align-items:center; gap:8px; padding:7px 14px; cursor:pointer; font-size:.82rem; border-left:2px solid transparent; transition:background .1s,border-color .1s; }
+    .nav-item:hover  { background:var(--surface2); }
+    .nav-item.active { background:var(--surface2); border-left-color:var(--accent); color:var(--accent); }
+    .nav-item .ni-name { flex:1; }
+    .nav-item .ni-badge { font-size:.65rem; background:var(--border); color:var(--muted); border-radius:999px; padding:1px 6px; }
+    .nav-item.online  .ni-dot { background:var(--green); }
+    .nav-item.offline .ni-dot { background:var(--red); }
+    .ni-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; background:var(--muted); }
+
+    /* ── Project view — canvas ───────────────────────────────────────────── */
+    #proj-canvas { overflow-y:auto; display:flex; flex-direction:column; position:relative; }
+
+    /* ── Shared column styles (kept for legacy inner cols) ───────────────── */
     .col { border-right:1px solid var(--border); overflow-y:auto; display:flex; flex-direction:column; }
     .col-hdr { display:flex; align-items:center; justify-content:space-between; padding:10px 12px 6px; border-bottom:1px solid var(--border); flex-shrink:0; }
     .col-hdr span { font-size:.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
     .col-body { padding:10px; flex:1; overflow-y:auto; }
-
-    /* ── Project cards ───────────────────────────────────────────────────── */
-    .proj-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:9px 11px; margin-bottom:7px; cursor:pointer; transition:border-color .15s; }
-    .proj-card:hover, .proj-card.active { border-color:var(--accent); }
-    .proj-card .pname { font-weight:600; font-size:.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .proj-card .pmeta { display:flex; gap:8px; margin-top:4px; font-size:.7rem; color:var(--muted); }
 
     /* Unassigned group */
     .unassigned-hdr { font-size:.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin:12px 0 6px; padding:0 2px; }
@@ -67,8 +92,8 @@
     .inline-form .row { display:flex; gap:6px; }
     .inline-form label { font-size:.7rem; color:var(--muted); display:block; margin-bottom:2px; }
 
-    /* ── Right panel ─────────────────────────────────────────────────────── */
-    #detail { overflow-y:auto; display:flex; flex-direction:column; }
+    /* ── Right panel (device detail inside canvas) ───────────────────────── */
+    #detail { overflow-y:auto; display:flex; flex-direction:column; flex:1; min-height:0; }
     #detail.empty { align-items:center; justify-content:center; }
     .empty-msg { color:var(--muted); font-size:.9rem; }
 
@@ -112,6 +137,26 @@
     .btn-danger  { background:transparent; border:1px solid var(--red); color:var(--red); }
     .btn-green   { background:var(--green); color:#000; }
     .btn-sm      { padding:3px 9px; font-size:.72rem; }
+
+    /* ── Log view ────────────────────────────────────────────────────────── */
+    .log-table { width:100%; border-collapse:collapse; font-size:.72rem; font-family:monospace; }
+    .log-table td { padding:3px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
+    .log-table tr:last-child td { border-bottom:none; }
+    .log-level-DEBUG { color:var(--muted); }
+    .log-level-INFO  { color:var(--text); }
+    .log-level-WARN  { color:var(--yellow); }
+    .log-level-ERROR { color:var(--red); }
+
+    /* ── Tree view ───────────────────────────────────────────────────────── */
+    .tree { display:flex; flex-direction:column; gap:4px; }
+    .tree-branch { border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+    .tree-node { display:flex; align-items:center; gap:7px; padding:8px 10px; cursor:pointer; user-select:none; background:var(--surface2); }
+    .tree-node:hover { background:var(--surface3, var(--border)); }
+    .tree-toggle { font-size:.65rem; color:var(--muted); width:10px; flex-shrink:0; }
+    .tree-label { font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+    .tree-count { font-size:.68rem; background:var(--border); color:var(--muted); border-radius:10px; padding:1px 6px; }
+    .tree-children { padding:8px 10px; display:flex; flex-direction:column; gap:6px; }
+    .tree-leaf { padding-left:14px; border-left:2px solid var(--border); }
 
     /* ── Pipeline / Hardware forms ───────────────────────────────────────── */
     .pipeline-form { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:14px; display:flex; flex-direction:column; gap:9px; margin-bottom:12px; }
@@ -161,7 +206,7 @@
     .svc-tag .stag-del:hover { color:var(--red); }
 
     /* ── Component detail overlay ──── */
-    #comp-detail { display:none; position:absolute; top:0; right:0; width:calc(100% - 180px - 250px); height:100%; background:var(--bg); z-index:20; overflow-y:auto; flex-direction:column; }
+    #comp-detail { display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:var(--bg); z-index:20; overflow-y:auto; flex-direction:column; }
     #comp-detail.open { display:flex; }
     .comp-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; margin-bottom:8px; cursor:pointer; transition:border-color .15s; }
     .comp-card:hover { border-color:var(--accent); }
@@ -184,44 +229,111 @@
 
 <header>
   <span style="font-size:1.3rem">⚡</span>
-  <h1>Electro</h1>
+  <h1 id="hdr-title" style="cursor:pointer" onclick="goHome()">Electron</h1>
+  <div id="hdr-breadcrumb" style="display:none;align-items:center;gap:6px;font-size:.82rem;color:var(--muted)">
+    <span onclick="goHome()" style="cursor:pointer;color:var(--muted)">Projects</span>
+    <span>/</span>
+    <span id="hdr-proj-name" style="color:var(--text);font-weight:600"></span>
+  </div>
   <div class="hdr-right">
-    <button class="btn btn-ghost btn-sm" onclick="loadAll()">Refresh</button>
+    <button id="hdr-back-btn" class="btn btn-ghost btn-sm" style="display:none" onclick="goHome()">← Projects</button>
+    <button id="hdr-new-btn"  class="btn btn-primary btn-sm" onclick="showNewProjectForm()">+ New Project</button>
+    <button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙ Settings</button>
+    <button class="btn btn-ghost btn-sm" onclick="loadAll()">↻</button>
   </div>
 </header>
 
-<main>
-  <!-- Col 1: Projects -->
-  <div class="col" id="col-projects">
-    <div class="col-hdr">
-      <span>Projects</span>
-      <button class="btn btn-primary btn-sm" onclick="showNewProjectForm()">+</button>
+<!-- ── Home view: project cards grid ──────────────────────────────────── -->
+<div id="view-home">
+  <div class="home-body">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:1.1rem;font-weight:700">Projects</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-top:2px">Click a project to open it</div>
+      </div>
     </div>
-    <div class="col-body" id="project-list">Loading…</div>
+    <div class="home-grid" id="home-project-grid">
+      <div style="color:var(--muted);font-size:.85rem">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Settings view ──────────────────────────────────────────────────── -->
+<div id="view-settings" style="display:none">
+  <div class="home-body">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <button class="btn btn-ghost btn-sm" onclick="goHome()">← Back</button>
+      <div style="font-size:1.1rem;font-weight:700">Settings</div>
+    </div>
+
+    <div class="card" style="max-width:480px">
+      <h3>Artifact Registry (Pocket)</h3>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:4px">
+        <label class="field">
+          <span>Server URL</span>
+          <input id="set-pocket-url" placeholder="http://192.168.0.107:30600"
+            style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.85rem;width:100%" />
+        </label>
+        <label class="field">
+          <span>API Key</span>
+          <input id="set-pocket-key" type="password" placeholder="pkt_..."
+            style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.85rem;width:100%" />
+        </label>
+        <div>
+          <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="max-width:480px;margin-top:16px">
+      <h3>Log Retention</h3>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:4px">
+        <label class="field">
+          <span>Delete logs older than (days)</span>
+          <input id="set-log-ttl" type="number" min="1" max="365" placeholder="30"
+            style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.85rem;width:100%" />
+        </label>
+        <div style="font-size:.75rem;color:var(--muted)">Set to 0 to disable automatic pruning. Pruning runs at startup and every hour.</div>
+        <div>
+          <button class="btn btn-primary" onclick="saveLogRetention()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div id="view-project">
+  <!-- Left nav: device list -->
+  <div id="proj-nav">
+    <div id="proj-nav-header">
+      <div id="proj-nav-title"></div>
+      <div id="proj-nav-id"></div>
+    </div>
+    <div id="proj-nav-body">
+      <div class="nav-section">Devices</div>
+      <div id="proj-devices-nav"></div>
+      <div style="padding:6px 14px">
+        <button class="btn btn-ghost btn-sm" style="width:100%" onclick="showAssignDevice(currentProjId)">+ Assign Device</button>
+      </div>
+      <div class="nav-section" style="margin-top:8px">Project</div>
+      <div class="nav-item" id="nav-item-details" onclick="openProjectInfo()">
+        <span>⚙</span><span class="ni-name">Details</span>
+      </div>
+      <div class="nav-item" id="nav-item-logs" onclick="openProjectLogs(currentProjId)">
+        <span>📋</span><span class="ni-name">Logs</span>
+      </div>
+    </div>
   </div>
 
-  <!-- Col 2: Devices + Services -->
-  <div class="col" id="col-middle">
-    <div class="col-hdr">
-      <span id="middle-title">Select a project</span>
-      <button id="svc-back-btn" class="btn btn-ghost btn-sm" style="display:none" onclick="closeServiceDetail()">← Back</button>
+  <!-- Canvas: device detail or project info -->
+  <div id="proj-canvas">
+    <div id="detail" class="empty">
+      <p class="empty-msg">Select a device</p>
     </div>
-    <!-- Project contents -->
-    <div class="col-body" id="middle-body">
-      <p style="color:var(--muted);font-size:.82rem;margin-top:8px">Select a project to see its devices and services.</p>
-    </div>
-    <!-- Service detail (shown when a service is selected) -->
-    <div class="col-body" id="svc-detail"></div>
+    <div id="comp-detail"></div>
   </div>
-
-  <!-- Col 3: Device detail -->
-  <div id="detail" class="empty">
-    <p class="empty-msg">Select a device</p>
-  </div>
-  <!-- Component detail overlay — covers col 3 when a component is selected -->
-  <div id="comp-detail"></div>
-  </div>
-</main>
+</div>
 
 <div id="modal-backdrop">
   <dialog id="modal-box">
@@ -240,7 +352,8 @@
 let projects    = [];
 let allDevices  = [];
 let selectedProj  = null;
-let selected      = null; // deviceId
+let currentProjId = null;  // project open in project view
+let selected      = null;  // deviceId
 let devicePins    = [];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -301,48 +414,291 @@ async function loadAll() {
     api('GET', '/projects'),
     api('GET', '/robot'),
   ]);
-  renderProjectList();
-  if (selectedProj && selectedProj !== '__unassigned') {
-    const proj = await api('GET', `/projects/${selectedProj}`);
-    renderMiddle(proj);
-  } else if (selectedProj === '__unassigned') {
-    selectUnassigned();
+  renderHomeGrid();
+  if (currentProjId) {
+    const proj = await api('GET', `/projects/${currentProjId}`);
+    renderNavDevices(proj);
   }
 }
 
-// ── Col 1: Project list ────────────────────────────────────────────────────
-function renderProjectList() {
-  const el = document.getElementById('project-list');
-  const unassigned = allDevices.filter(d => !d.projectId);
+// ── Home view ──────────────────────────────────────────────────────────────
+function goHome() {
+  currentProjId = null;
+  selectedProj  = null;
+  selected      = null;
+  document.getElementById('view-home').style.display     = '';
+  document.getElementById('view-project').style.display  = 'none';
+  document.getElementById('view-settings').style.display = 'none';
+  document.getElementById('view-project').classList.remove('active');
+  document.getElementById('hdr-breadcrumb').style.display = 'none';
+  document.getElementById('hdr-back-btn').style.display   = 'none';
+  document.getElementById('hdr-new-btn').style.display    = '';
+  renderHomeGrid();
+}
 
-  let html = projects.map(p => `
-    <div class="proj-card ${selectedProj===p.id?'active':''}" onclick="selectProject('${p.id}')">
+function renderHomeGrid() {
+  const el = document.getElementById('home-project-grid');
+  if (!projects.length) {
+    el.innerHTML = `<div style="color:var(--muted);font-size:.85rem;padding:24px 0">No projects yet. Click <strong>+ New Project</strong> to get started.</div>`;
+    return;
+  }
+  el.innerHTML = projects.map(p => {
+    const devCount = allDevices.filter(d => d.projectId === p.id).length;
+    return `
+    <div class="proj-card" onclick="openProject('${p.id}')">
       <div class="pname">${p.name}</div>
+      <div class="pdesc">${p.description || ''}</div>
       <div class="pmeta">
-        <span>📱 ${p.deviceCount}</span>
-        <span>🧠 ${p.serviceCount}</span>
+        <span>📱 ${devCount} device${devCount !== 1 ? 's' : ''}</span>
+        <span>🧠 ${p.serviceCount || 0} service${p.serviceCount !== 1 ? 's' : ''}</span>
       </div>
-    </div>`).join('');
+      <div class="pid">ID: ${p.projectId}</div>
+    </div>`;
+  }).join('');
+}
 
-  // Unassigned group
-  if (unassigned.length) {
-    const uActive = selectedProj === '__unassigned' ? 'active' : '';
-    html += `<div class="unassigned-hdr">Unassigned (${unassigned.length})</div>`;
-    html += unassigned.map(d => `
-      <div class="proj-card ${uActive}" onclick="selectUnassigned()">
-        <div class="pname" style="font-size:.8rem">${d.deviceName}</div>
-        <div class="pmeta"><span class="badge ${isOnline(d.lastSeen)?'online':'offline'}">●</span></div>
-      </div>`).join('');
+// ── Open project view ──────────────────────────────────────────────────────
+async function openProject(id) {
+  currentProjId = id;
+  selectedProj  = id;
+  selected      = null;
+
+  const proj = await api('GET', `/projects/${id}`);
+
+  // Switch views
+  document.getElementById('view-home').style.display    = 'none';
+  document.getElementById('view-project').style.display = '';
+  document.getElementById('view-project').classList.add('active');
+
+  // Header breadcrumb
+  document.getElementById('hdr-breadcrumb').style.display = 'flex';
+  document.getElementById('hdr-proj-name').textContent    = proj.name;
+  document.getElementById('hdr-back-btn').style.display   = '';
+  document.getElementById('hdr-new-btn').style.display    = 'none';
+
+  // Left nav
+  document.getElementById('proj-nav-title').textContent = proj.name;
+  document.getElementById('proj-nav-id').textContent    = `ID: ${proj.projectId}`;
+  renderNavDevices(proj);
+
+  // Canvas: project info by default
+  openProjectInfo(proj);
+}
+
+function renderNavDevices(proj) {
+  const el = document.getElementById('proj-devices-nav');
+  const devices = proj.devices || [];
+  if (!devices.length) {
+    el.innerHTML = `<div class="nav-item" style="color:var(--muted);font-size:.75rem;cursor:default">No devices yet</div>`;
+    return;
+  }
+  el.innerHTML = devices.map(d => {
+    const online = isOnline(d.lastSeen);
+    return `<div class="nav-item ${online?'online':'offline'} ${selected===d.deviceId?'active':''}" onclick="selectDevice('${d.deviceId}')">
+      <span class="ni-dot"></span>
+      <span class="ni-name">${d.deviceName}</span>
+      <span class="ni-badge">${d.deviceType}</span>
+    </div>`;
+  }).join('');
+}
+
+function openProjectInfo(proj) {
+  if (!proj) {
+    const p = projects.find(p => p.id === currentProjId);
+    if (!p) return;
+    api('GET', `/projects/${currentProjId}`).then(openProjectInfo);
+    return;
+  }
+  selected = null;
+  const detail = document.getElementById('detail');
+  detail.className = '';
+  detail.innerHTML = `
+    <div style="padding:24px 28px;max-width:640px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px">
+        <div>
+          <div style="font-size:1.2rem;font-weight:700;margin-bottom:4px">${proj.name}</div>
+          ${proj.description ? `<div style="font-size:.85rem;color:var(--muted);margin-bottom:8px">${proj.description}</div>` : ''}
+          <code style="font-size:.72rem;color:var(--muted)">ID: ${proj.projectId}</code>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="showEditProject('${proj.id}','${proj.name}','${proj.description||''}')">Edit</button>
+      </div>
+
+      <div class="tree">
+        <div class="tree-branch">
+          <div class="tree-node" onclick="toggleBranch('br-svc-${proj.id}',this)">
+            <span class="tree-toggle">▼</span>
+            <span class="tree-label">Services / Brain</span>
+            <span class="tree-count">${(proj.services||[]).length}</span>
+            <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="event.stopPropagation();showAddService('${proj.id}')">+ Add</button>
+          </div>
+          <div class="tree-children" id="br-svc-${proj.id}">
+            ${(proj.services||[]).length
+              ? proj.services.map(s => `<div class="tree-leaf">${serviceCard(s, proj.id)}</div>`).join('')
+              : '<div class="tree-leaf" style="color:var(--muted);font-size:.78rem;padding:4px 0">No services added.</div>'}
+            <div id="services-list-${proj.id}"></div>
+            <div id="svc-form-${proj.id}"></div>
+          </div>
+        </div>
+
+        <div class="tree-branch">
+          <div class="tree-node" onclick="toggleBranch('br-q-${proj.id}',this)">
+            <span class="tree-toggle">▼</span>
+            <span class="tree-label">Queues</span>
+            <span class="tree-count">${getProjectQueues(proj.id).length}</span>
+            <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="event.stopPropagation();showCreateQueue('${proj.id}')">+ New</button>
+          </div>
+          <div class="tree-children" id="br-q-${proj.id}">
+            ${getProjectQueues(proj.id).length
+              ? getProjectQueues(proj.id).map(q => `<div class="tree-leaf">${queueCard(q, proj.id)}</div>`).join('')
+              : '<div class="tree-leaf" style="color:var(--muted);font-size:.78rem;padding:4px 0">No queues yet.</div>'}
+            <div id="queues-list-${proj.id}"></div>
+            <div id="queue-form-${proj.id}"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Service detail panel (shown when a service is selected) -->
+      <div id="svc-detail" style="margin-top:16px"></div>
+    </div>`;
+
+  if (proj.devices) {
+    for (const d of proj.devices) loadDeviceHealthCard(d.deviceId);
+  }
+  setNavActive('nav-item-details');
+}
+
+// ── Legacy stubs (kept for service-detail back button compatibility) ────────
+function selectUnassigned() {}
+function renderProjectList() {}
+function renderMiddle(proj) { openProjectInfo(proj); }
+
+// ── Project Logs ───────────────────────────────────────────────────────────
+const LOG_LEVEL_COLORS = { DEBUG:'var(--muted)', INFO:'var(--text)', WARN:'var(--yellow)', ERROR:'var(--red)' };
+
+function setNavActive(id) {
+  document.querySelectorAll('#proj-nav-body .nav-item').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+function openProjectLogs(projId) {
+  if (!projId) return;
+  setNavActive('nav-item-logs');
+  selected = null;
+  const detail = document.getElementById('detail');
+  detail.className = '';
+  detail.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:5">
+      <div style="font-size:.9rem;font-weight:600">📋 Logs</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <select id="log-filter-level-${projId}" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:4px 8px;font-size:.75rem"
+          onchange="renderLogsTable('${projId}')">
+          <option value="">All levels</option>
+          <option value="DEBUG">DEBUG</option>
+          <option value="INFO">INFO</option>
+          <option value="WARN">WARN</option>
+          <option value="ERROR">ERROR</option>
+        </select>
+        <input id="log-filter-device-${projId}" placeholder="Device" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:4px 8px;font-size:.75rem;width:90px"
+          oninput="renderLogsTable('${projId}')" />
+        <input id="log-filter-search-${projId}" placeholder="Search message…" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:4px 8px;font-size:.75rem;width:160px"
+          oninput="renderLogsTable('${projId}')" />
+        <button class="btn btn-ghost btn-sm" onclick="loadProjectLogs('${projId}')">↻ Refresh</button>
+        <button class="btn btn-danger btn-sm" onclick="clearProjectLogs('${projId}')">Clear</button>
+      </div>
+    </div>
+    <div id="log-view-${projId}" style="flex:1;overflow-y:auto;padding:12px 20px">
+      <p style="font-size:.78rem;color:var(--muted)">Loading…</p>
+    </div>`;
+
+  loadProjectLogs(projId);
+}
+
+let _logCache = {};  // projId → log entries
+
+async function loadProjectLogs(projId) {
+  try {
+    const logs = await api('GET', `/projects/${projId}/logs?limit=500`);
+    _logCache[projId] = logs;
+    renderLogsTable(projId);
+  } catch(e) {
+    const el = document.getElementById(`log-view-${projId}`);
+    if (el) el.innerHTML = `<p style="font-size:.78rem;color:var(--red)">Error: ${e.message}</p>`;
+  }
+}
+
+function renderLogsTable(projId) {
+  const el = document.getElementById(`log-view-${projId}`);
+  if (!el) return;
+  const logs = _logCache[projId] || [];
+
+  const levelFilter  = document.getElementById(`log-filter-level-${projId}`)?.value || '';
+  const deviceFilter = (document.getElementById(`log-filter-device-${projId}`)?.value || '').toLowerCase();
+  const msgFilter    = (document.getElementById(`log-filter-search-${projId}`)?.value || '').toLowerCase();
+
+  const filtered = logs.filter(l =>
+    (!levelFilter  || l.level === levelFilter) &&
+    (!deviceFilter || l.deviceName.toLowerCase().includes(deviceFilter)) &&
+    (!msgFilter    || l.message.toLowerCase().includes(msgFilter) || l.logger.toLowerCase().includes(msgFilter))
+  );
+
+  if (!filtered.length) {
+    el.innerHTML = '<p style="font-size:.78rem;color:var(--muted)">No logs match filter.</p>';
+    return;
   }
 
-  el.innerHTML = html || '<p style="color:var(--muted);font-size:.8rem">No projects yet.</p>';
+  const total = logs.length;
+  const countNote = filtered.length < total
+    ? `<div style="font-size:.72rem;color:var(--muted);padding:6px 0 2px">Showing ${filtered.length} of ${total} entries</div>`
+    : `<div style="font-size:.72rem;color:var(--muted);padding:6px 0 2px">${total} entries</div>`;
+
+  el.innerHTML = countNote + `<table class="log-table">
+    <thead style="position:sticky;top:0;background:var(--bg)">
+      <tr>
+        <td style="color:var(--muted);font-weight:600;white-space:nowrap">Time</td>
+        <td style="color:var(--muted);font-weight:600">Level</td>
+        <td style="color:var(--muted);font-weight:600">Device</td>
+        <td style="color:var(--muted);font-weight:600">Logger</td>
+        <td style="color:var(--muted);font-weight:600;width:100%">Message</td>
+      </tr>
+    </thead>
+    <tbody>
+      ${filtered.map(l => {
+        const ts  = new Date(l.createdAt).toLocaleTimeString('en-IN', { hour12:false });
+        const col = LOG_LEVEL_COLORS[l.level] || 'var(--text)';
+        return `<tr>
+          <td style="color:var(--muted);white-space:nowrap">${ts}</td>
+          <td style="color:${col};font-weight:600;white-space:nowrap">${l.level}</td>
+          <td style="color:var(--muted);white-space:nowrap">${l.deviceName}</td>
+          <td style="color:var(--muted);white-space:nowrap">${l.logger}</td>
+          <td style="color:${col}">${l.message}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
 }
+
+async function clearProjectLogs(projId) {
+  if (!confirm('Clear all logs for this project?')) return;
+  try {
+    await api('DELETE', `/projects/${projId}/logs`);
+    toast('Logs cleared');
+    _logCache[projId] = [];
+    renderLogsTable(projId);
+  } catch(e) { toast(`Error: ${e.message}`, false); }
+}
+
+// ── Stub middle-body/middle-title refs used by service detail ───────────────
+function getMiddleBody() { return document.getElementById('svc-detail') || document.body; }
 
 function showNewProjectForm() {
   openModal('New Project', `
-    <div><label class="field"><span style="font-size:.75rem;color:var(--muted)">Name</span><input id="np-name" placeholder="e.g. Tara Home" /></label></div>
-    <div><label class="field"><span style="font-size:.75rem;color:var(--muted)">Description</span><input id="np-desc" placeholder="Optional" /></label></div>
-    <div style="display:flex;gap:8px">
+    <div class="inline-form">
+      <label>Name *<input id="np-name" placeholder="e.g. Tara Home" /></label>
+      <label>Project ID<input id="np-pid" placeholder="Auto-generated if empty" /></label>
+      <label>Description<input id="np-desc" placeholder="Optional" /></label>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
       <button class="btn btn-primary" onclick="createProject()">Create</button>
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
     </div>`);
@@ -350,77 +706,54 @@ function showNewProjectForm() {
 
 async function createProject() {
   const name = document.getElementById('np-name').value.trim();
+  const pid  = document.getElementById('np-pid').value.trim();
   const desc = document.getElementById('np-desc').value.trim();
   if (!name) { toast('Name required', false); return; }
   try {
-    await api('POST', '/projects', { name, description: desc });
+    await api('POST', '/projects', {
+      name,
+      ...(pid  ? { projectId: pid }    : {}),
+      ...(desc ? { description: desc } : {}),
+    });
     toast('Project created');
     closeModal();
     loadAll();
   } catch(e) { toast(`Error: ${e.message}`, false); }
 }
 
-// ── Col 2: Middle panel ────────────────────────────────────────────────────
-async function selectProject(id) {
-  selectedProj = id;
-  renderProjectList();
-  const proj = await api('GET', `/projects/${id}`);
-  renderMiddle(proj);
+function showEditProject(id, name, description) {
+  openModal('Edit Project', `
+    <div class="inline-form">
+      <label>Name *<input id="ep-name" value="${name}" /></label>
+      <label>Description<input id="ep-desc" value="${description}" placeholder="Optional" /></label>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-primary" onclick="editProject('${id}')">Save</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    </div>`);
 }
 
-function selectUnassigned() {
-  selectedProj = '__unassigned';
-  renderProjectList();
-  const unassigned = allDevices.filter(d => !d.projectId);
-  document.getElementById('middle-title').textContent = 'Unassigned Devices';
-  const body = document.getElementById('middle-body');
-  body.innerHTML = unassigned.map(d => deviceCard(d, false)).join('') ||
-    '<p style="color:var(--muted);font-size:.82rem">No unassigned devices.</p>';
+async function editProject(id) {
+  const name = document.getElementById('ep-name').value.trim();
+  const desc = document.getElementById('ep-desc').value.trim();
+  if (!name) { toast('Name required', false); return; }
+  try {
+    await api('PUT', `/projects/${id}`, { name, description: desc });
+    toast('Project updated');
+    closeModal();
+    document.getElementById('proj-nav-title').textContent = name;
+    const proj = await api('GET', `/projects/${id}`);
+    openProjectInfo(proj);
+    loadAll();
+  } catch(e) { toast(`Error: ${e.message}`, false); }
 }
 
-function renderMiddle(proj) {
-  document.getElementById('middle-title').textContent = proj.name;
-  const body = document.getElementById('middle-body');
-
-  const devicesHtml = proj.devices && proj.devices.length
-    ? proj.devices.map(d => deviceCard(d, true, proj.id)).join('')
-    : '<p style="color:var(--muted);font-size:.78rem;margin-bottom:8px">No devices in this project.</p>';
-
-  const servicesHtml = (proj.services || []).map(s => serviceCard(s, proj.id)).join('');
-
-  const projectQueues = getProjectQueues(proj.id);
-  const queuesHtml = projectQueues.length
-    ? projectQueues.map(q => queueCard(q, proj.id)).join('')
-    : '<p style="color:var(--muted);font-size:.78rem">No queues yet.</p>';
-
-  body.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-      <div class="section-title" style="margin:0">Devices</div>
-      <button class="btn btn-ghost btn-sm" onclick="showAssignDevice('${proj.id}')">+ Assign</button>
-    </div>
-    <div id="devices-list-${proj.id}">${devicesHtml}</div>
-
-    <div style="display:flex;align-items:center;justify-content:space-between;margin:12px 0 6px">
-      <div class="section-title" style="margin:0">Services / Brain</div>
-      <button class="btn btn-ghost btn-sm" onclick="showAddService('${proj.id}')">+ Add</button>
-    </div>
-    <div id="services-list-${proj.id}">${servicesHtml}</div>
-    <div id="svc-form-${proj.id}"></div>
-
-    <div style="display:flex;align-items:center;justify-content:space-between;margin:12px 0 6px">
-      <div class="section-title" style="margin:0">Queues</div>
-      <button class="btn btn-ghost btn-sm" onclick="showCreateQueue('${proj.id}')">+ New</button>
-    </div>
-    <div id="queues-list-${proj.id}">${queuesHtml}</div>
-    <div id="queue-form-${proj.id}"></div>
-
-    <div id="assign-form-${proj.id}"></div>
-  `;
-
-  // Fetch and fill health snippets for each device card (non-blocking)
-  if (proj.devices) {
-    for (const d of proj.devices) loadDeviceHealthCard(d.deviceId);
-  }
+function toggleBranch(id, node) {
+  const el = document.getElementById(id);
+  const toggle = node.querySelector('.tree-toggle');
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : '';
+  toggle.textContent = open ? '▶' : '▼';
 }
 
 async function loadDeviceHealthCard(deviceId) {
@@ -507,15 +840,19 @@ function openServiceDetail(projId, svcId, svcName) {
   _activeSvcName = svcName;
   _svcDevices    = allDevices.filter(d => d.projectId === projId);
 
-  document.getElementById('middle-body').style.display  = 'none';
-  document.getElementById('svc-detail').classList.add('open');
-  document.getElementById('svc-back-btn').style.display = '';
-  document.getElementById('middle-title').textContent   = svcName;
+  // In the new layout svc-detail lives inside the canvas detail area
+  const detail = document.getElementById('detail');
+  detail.className = '';
+  detail.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:5">
+      <button class="btn btn-ghost btn-sm" onclick="closeServiceDetail()">← Back</button>
+      <strong style="font-size:.95rem">🧠 ${svcName}</strong>
+    </div>
+    <div id="svc-detail" style="flex:1;overflow-y:auto"></div>`;
 
   const saved = loadServiceState(svcId);
   renderServiceDetail(svcId, saved);
 
-  // Poll live values every 3 s while service detail is open
   if (_svcLiveTimer) clearInterval(_svcLiveTimer);
   _svcLiveTimer = setInterval(() => pollSvcLive(svcId), 3000);
 }
@@ -523,11 +860,7 @@ function openServiceDetail(projId, svcId, svcName) {
 function closeServiceDetail() {
   if (_svcLiveTimer) { clearInterval(_svcLiveTimer); _svcLiveTimer = null; }
   _activeSvcId = null;
-  document.getElementById('middle-body').style.display  = '';
-  document.getElementById('svc-detail').classList.remove('open');
-  document.getElementById('svc-back-btn').style.display = 'none';
-  const proj = projects.find(p => p.id === _activeProjId);
-  if (proj) document.getElementById('middle-title').textContent = proj?.name ?? '';
+  openProjectInfo();
 }
 
 function saveServiceState(svcId, state) {
@@ -1083,7 +1416,8 @@ async function assignDevice(projId) {
     toast('Device assigned');
     closeModal();
     const proj = await api('GET', `/projects/${projId}`);
-    renderMiddle(proj);
+    renderNavDevices(proj);
+    openProjectInfo(proj);
     loadAll();
   } catch(e) { toast(`Error: ${e.message}`, false); }
 }
@@ -1094,18 +1428,19 @@ async function unassignDevice(projId, deviceId) {
     await api('DELETE', `/projects/${projId}/devices/${deviceId}`);
     toast('Device unassigned');
     const proj = await api('GET', `/projects/${projId}`);
-    renderMiddle(proj);
+    renderNavDevices(proj);
+    openProjectInfo(proj);
     loadAll();
   } catch(e) { toast(`Error: ${e.message}`, false); }
 }
 
-// ── Col 3: Device detail ───────────────────────────────────────────────────
+// ── Device detail ─────────────────────────────────────────────────────────
 async function selectDevice(id) {
   selected = id;
-  // Re-render middle to update active state
-  if (selectedProj && selectedProj !== '__unassigned') {
-    const proj = await api('GET', `/projects/${selectedProj}`);
-    renderMiddle(proj);
+  // Refresh nav active state
+  if (currentProjId) {
+    const proj = await api('GET', `/projects/${currentProjId}`);
+    renderNavDevices(proj);
   }
 
   const detail = document.getElementById('detail');
@@ -1172,45 +1507,225 @@ function renderHealth(d) {
 }
 
 // ── Tab: Config ────────────────────────────────────────────────────────────
+function devCfgKey(deviceId) { return `dev_cfg_${deviceId}`; }
+function loadDevCfg(deviceId) {
+  return JSON.parse(localStorage.getItem(devCfgKey(deviceId)) || '{"healthcheck":{"enabled":false,"frequency":60}}');
+}
+
 function renderConfig(deviceId, device) {
+  const cfg = loadDevCfg(deviceId);
+  const hc  = cfg.healthcheck || { enabled: false, frequency: 60 };
+  const proj = device.project || {};
   document.getElementById('tab-config').innerHTML = `
     <div class="card">
+      <h3>Project</h3>
+      <table>
+        <tr><th>Project ID</th><td><code>${proj.projectId || '—'}</code></td></tr>
+        <tr><th>Project Name</th><td>${proj.name || '—'}</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
       <h3>Device Identity</h3>
-      <div class="pipeline-form" style="background:var(--bg);border:none;padding:0;gap:12px">
-        <div class="row">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div>
             <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:3px">Device Name</label>
-            <input id="cfg-name" value="${device.deviceName}" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.82rem;width:100%" />
+            <input id="cfg-name" value="${device.deviceName}"
+              style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.82rem;width:100%" />
           </div>
           <div>
             <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:3px">Device Type</label>
-            <input id="cfg-type" value="${device.deviceType}" placeholder="e.g. robot, clock, sensor-hub"
+            <input id="cfg-type" value="${device.deviceType}" placeholder="e.g. robot"
               style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.82rem;width:100%" />
           </div>
         </div>
-        <p style="font-size:.72rem;color:var(--muted)">
-          Device type is used for OTA targeting from Pocket — all devices of the same type receive firmware updates together.
-        </p>
-        <button class="btn btn-primary btn-sm" style="align-self:flex-start" onclick="saveDeviceIdentity('${deviceId}')">Save</button>
       </div>
     </div>
+
+    <div class="card">
+      <h3>Health Check</h3>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <label class="toggle">
+            <input type="checkbox" id="cfg-hc-enabled" ${hc.enabled ? 'checked' : ''}
+              onchange="document.getElementById('cfg-hc-freq-row').style.display=this.checked?'':'none'">
+            <span class="slider"></span>
+          </label>
+          <span style="font-size:.82rem">${hc.enabled ? 'Enabled' : 'Disabled'}</span>
+        </div>
+        <div id="cfg-hc-freq-row" style="display:${hc.enabled ? '' : 'none'}">
+          <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:3px">Frequency (seconds)</label>
+          <input id="cfg-hc-freq" type="number" min="5" value="${hc.frequency}"
+            style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.82rem;width:120px" />
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-sm" onclick="saveDeviceConfig('${deviceId}')">Save &amp; Send Config</button>
+    <div id="cfg-status-${deviceId}" style="margin-top:8px"></div>
   `;
 }
 
+async function saveDeviceConfig(deviceId) {
+  const name    = document.getElementById('cfg-name').value.trim();
+  const type    = document.getElementById('cfg-type').value.trim();
+  const enabled = document.getElementById('cfg-hc-enabled').checked;
+  const freq    = parseInt(document.getElementById('cfg-hc-freq')?.value || '60');
+  if (!name || !type) { toast('Name and type required', false); return; }
+
+  const hc = { enabled, frequency: isNaN(freq) ? 60 : freq };
+  localStorage.setItem(devCfgKey(deviceId), JSON.stringify({ healthcheck: hc }));
+
+  try {
+    const res = await api('POST', `/robot/${deviceId}/device-config`, {
+      deviceName: name, deviceType: type, healthcheck: hc,
+    });
+    toast('Config sent');
+    const el = document.getElementById(`cfg-status-${deviceId}`);
+    if (el) el.innerHTML = `<p style="font-size:.72rem;color:var(--muted)">Published → <code>${res.topic}</code></p>`;
+    // Refresh nav if name changed
+    if (currentProjId) {
+      const proj = await api('GET', `/projects/${currentProjId}`);
+      renderNavDevices(proj);
+    }
+  } catch(e) { toast(`Error: ${e.message}`, false); }
+}
+
+function otaCfgKey(deviceId) { return `ota_cfg_${deviceId}`; }
+function loadOtaCfg(deviceId) {
+  return JSON.parse(localStorage.getItem(otaCfgKey(deviceId)) || '{}');
+}
+function saveOtaCfg(deviceId, cfg) {
+  localStorage.setItem(otaCfgKey(deviceId), JSON.stringify(cfg));
+}
+
 function renderFirmware(deviceId, device) {
+  const cfg = loadOtaCfg(deviceId);
   document.getElementById('tab-firmware').innerHTML = `
     <div class="card">
-      <h3>Firmware</h3>
-      <table style="margin-bottom:12px">
-        <tr><th>Current Version</th><td><strong>v${device.firmwareVersion}</strong></td></tr>
+      <h3>Current Firmware</h3>
+      <table>
+        <tr><th>Version</th><td><strong>v${device.firmwareVersion}</strong></td></tr>
         <tr><th>Device Type</th><td><code>${device.deviceType}</code></td></tr>
       </table>
-      <button class="btn btn-ghost btn-sm" onclick="checkOTA('${deviceId}','${device.deviceType}')">Check for Updates</button>
-      <div id="ota-status-${deviceId}" style="margin-top:10px">
-        <p style="font-size:.82rem;color:var(--muted)">Click "Check for Updates" to compare with Pocket.</p>
-      </div>
     </div>
-  `;
+
+    <div class="card">
+      <h3>OTA Update</h3>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:3px">Repository</label>
+            <input id="ota-repo-${deviceId}" value="${cfg.repo||'electro-firmware'}"
+              style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.82rem;width:100%" />
+          </div>
+          <div>
+            <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:3px">Artifact</label>
+            <input id="ota-artifact-${deviceId}" value="${cfg.artifact||'tara-robot'}"
+              style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.82rem;width:100%" />
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="saveOtaConfig('${deviceId}')">Save</button>
+          <button class="btn btn-ghost btn-sm" onclick="checkOTA('${deviceId}')">Check for Updates</button>
+        </div>
+      </div>
+      <div id="ota-status-${deviceId}" style="margin-top:12px"></div>
+    </div>`;
+}
+
+function loadSettings() {
+  return JSON.parse(localStorage.getItem('electro_settings') || '{}');
+}
+function saveSettings() {
+  const pocketUrl   = document.getElementById('set-pocket-url').value.trim();
+  const pocketToken = document.getElementById('set-pocket-key').value.trim();
+  localStorage.setItem('electro_settings', JSON.stringify({ pocketUrl, pocketToken }));
+  toast('Settings saved');
+}
+function openSettings() {
+  const s = loadSettings();
+  document.getElementById('view-home').style.display     = 'none';
+  document.getElementById('view-project').style.display  = 'none';
+  document.getElementById('view-settings').style.display = '';
+  document.getElementById('hdr-new-btn').style.display   = 'none';
+  document.getElementById('hdr-back-btn').style.display  = 'none';
+  document.getElementById('hdr-breadcrumb').style.display = 'none';
+  document.getElementById('set-pocket-url').value  = s.pocketUrl   || '';
+  document.getElementById('set-pocket-key').value  = s.pocketToken || '';
+  // Load TTL from server
+  api('GET', '/settings').then(cfg => {
+    document.getElementById('set-log-ttl').value = cfg.logTtlDays ?? '30';
+  }).catch(() => {});
+}
+
+async function saveLogRetention() {
+  const days = document.getElementById('set-log-ttl').value.trim();
+  const ttl  = parseInt(days);
+  if (isNaN(ttl) || ttl < 0) { toast('Enter a valid number of days (0 = disabled)', false); return; }
+  try {
+    await api('PUT', '/settings', { logTtlDays: String(ttl) });
+    toast('Log retention saved');
+  } catch(e) {
+    toast('Failed to save: ' + e.message, false);
+  }
+}
+
+function saveOtaConfig(deviceId) {
+  const repo     = document.getElementById(`ota-repo-${deviceId}`).value.trim();
+  const artifact = document.getElementById(`ota-artifact-${deviceId}`).value.trim();
+  saveOtaCfg(deviceId, { repo, artifact });
+  toast('OTA config saved');
+}
+
+async function checkOTA(deviceId) {
+  const cfg = loadOtaCfg(deviceId);
+  const s   = loadSettings();
+  if (!s.pocketUrl) { toast('Set Pocket URL in ⚙ Settings first', false); return; }
+  const el = document.getElementById(`ota-status-${deviceId}`);
+  el.innerHTML = '<p style="color:var(--muted);font-size:.82rem">Checking…</p>';
+  try {
+    const params = new URLSearchParams({
+      artifactoryUrl: s.pocketUrl,
+      repo:           cfg.repo     || 'electro-firmware',
+      artifact:       cfg.artifact || 'tara-robot',
+      ...(s.pocketToken ? { apiKey: s.pocketToken } : {}),
+    });
+    const result = await api('GET', `/robot/${deviceId}/ota-check?${params}`);
+    if (result.available) {
+      el.innerHTML = `
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <div>
+              <span style="color:var(--yellow);font-weight:600;font-size:.85rem">Update available</span>
+              <span style="font-size:.78rem;color:var(--muted);margin-left:8px">v${result.currentVersion} → v${result.latestVersion}</span>
+            </div>
+            <button class="btn btn-green btn-sm" onclick="pushOTA('${deviceId}','${result.latestVersion}','${result.downloadUrl}')">
+              ⚡ Update Now
+            </button>
+          </div>
+        </div>`;
+    } else {
+      el.innerHTML = `<p style="color:var(--green);font-size:.82rem">✓ Up to date (v${result.currentVersion})</p>`;
+    }
+  } catch(e) {
+    el.innerHTML = `<p style="color:var(--red);font-size:.82rem">Error: ${e.message}</p>`;
+  }
+}
+
+async function pushOTA(deviceId, version, url) {
+  const s = loadSettings();
+  try {
+    const res = await api('POST', `/robot/${deviceId}/ota-push`, {
+      version,
+      url,
+      ...(s.pocketToken ? { apiKey: s.pocketToken } : {}),
+    });
+    toast(`OTA v${version} sent via MQTT → ${res.topic}`);
+    document.getElementById(`ota-status-${deviceId}`).innerHTML =
+      `<p style="color:var(--green);font-size:.82rem">⚡ OTA sent — device will reboot after flashing.</p>`;
+  } catch(e) { toast(`Error: ${e.message}`, false); }
 }
 
 async function saveDeviceIdentity(deviceId) {
@@ -1222,7 +1737,6 @@ async function saveDeviceIdentity(deviceId) {
       deviceId, deviceName: name, deviceType: type, firmwareVersion: '—',
     });
     toast('Identity updated');
-    // Refresh device detail to reflect new type
     selectDevice(deviceId);
   } catch(e) { toast(`Error: ${e.message}`, false); }
 }
@@ -1240,40 +1754,6 @@ function fmtDeviceConfig() {
   const el = document.getElementById('dev-config-editor');
   try { el.value = JSON.stringify(JSON.parse(el.value), null, 2); }
   catch { toast('Invalid JSON', false); }
-}
-
-async function checkOTA(deviceId, deviceType) {
-  const el = document.getElementById(`ota-status-${deviceId}`);
-  el.innerHTML = '<p style="color:var(--muted);font-size:.82rem">Checking Pocket…</p>';
-  try {
-    // Ask our server to check Pocket for the latest artifact for this device type
-    const result = await api('GET', `/robot/${deviceId}/ota-check`);
-    if (result.available) {
-      el.innerHTML = `
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <div>
-            <span style="color:var(--yellow);font-weight:600;font-size:.85rem">Update available</span>
-            <span style="font-size:.78rem;color:var(--muted);margin-left:8px">v${result.currentVersion} → v${result.latestVersion}</span>
-            ${result.releaseNotes ? `<p style="font-size:.75rem;color:var(--muted);margin-top:3px">${result.releaseNotes}</p>` : ''}
-          </div>
-          <button class="btn btn-green btn-sm" onclick="pushOTAFromElectro('${deviceId}','${result.otaReleaseId}')">
-            ⚡ Update Now
-          </button>
-        </div>`;
-    } else {
-      el.innerHTML = `<p style="color:var(--green);font-size:.82rem">✓ Up to date (v${result.currentVersion})</p>`;
-    }
-  } catch(e) {
-    el.innerHTML = `<p style="color:var(--red);font-size:.82rem">Could not reach Pocket: ${e.message}</p>`;
-  }
-}
-
-async function pushOTAFromElectro(deviceId, otaReleaseId) {
-  try {
-    await api('POST', `/robot/${deviceId}/push-ota`, { otaReleaseId });
-    toast('OTA update sent to device — it will reboot shortly');
-    selectDevice(deviceId);
-  } catch(e) { toast(`Error: ${e.message}`, false); }
 }
 
 // ── Tab: Hardware ──────────────────────────────────────────────────────────
