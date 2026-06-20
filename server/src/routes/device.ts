@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db';
+import { getMqtt } from '../mqtt';
 
 interface ComponentPin {
     pin: string;
@@ -73,6 +74,24 @@ export async function deviceRoutes(app: FastifyInstance) {
         });
 
         const slug = deviceWithProject?.project?.projectId ?? null;
+
+        // Push config to device via MQTT immediately after registration
+        if (deviceWithProject?.project) {
+            const proj = deviceWithProject.project;
+            const configTopic = `${proj.projectId}.${deviceName}.${proj.configTopic}`;
+            const configPayload = JSON.stringify({
+                projectID:   proj.projectId,
+                projectName: proj.name,
+                deviceName,
+                deviceType,
+                mqttHost:    proj.mqttHost,
+                mqttPort:    proj.mqttPort,
+            });
+            try {
+                getMqtt().publish(configTopic, configPayload, { qos: 1, retain: true });
+            } catch { /* MQTT may not be ready — device will get it on next connect */ }
+        }
+
         return reply.code(200).send({ id: device.id, deviceId: device.deviceId, projectId: slug });
     });
 
