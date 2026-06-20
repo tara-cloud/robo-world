@@ -7,7 +7,8 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # Runs directly on the Pi — has local kubectl/helm access
+    runs-on: [self-hosted, pi]
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
@@ -16,56 +17,47 @@ jobs:
       - name: Extract version from triggering tag
         id: version
         run: |
-          TAG="${{ github.event.workflow_run.head_branch }}"
-          # workflow_run gives the branch; for tags it's the tag name
-          VERSION="${TAG#v}"
+          REF="${{ github.event.workflow_run.head_branch }}"
+          VERSION="${REF#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Deploying robo-world:$VERSION"
+
+      - name: Pre-pull image into k8s.io namespace
+        run: |
+          sudo ctr --namespace k8s.io images pull \
+            docker.io/pmananthu/robo-world:${{ steps.version.outputs.version }}
 
       - name: Package helm chart
         run: |
           cd helm
           tar czf /tmp/robo-world-chart.tar.gz robo-world/
+          cd /tmp && tar xzf robo-world-chart.tar.gz
 
-      - name: Copy helm chart to Pi
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host:     ${{ secrets.PI_HOST }}
-          username: ${{ secrets.PI_USER }}
-          password: ${{ secrets.PI_PASSWORD }}
-          source:   /tmp/robo-world-chart.tar.gz
-          target:   /tmp/
+      - name: Backup database
+        run: |
+          mkdir -p /DATA/AppData/robo-world/backups
+          sudo kubectl exec -n robo-world deploy/robo-world-postgres -- \
+            pg_dump -U robo_user robo_world \
+            > /DATA/AppData/robo-world/backups/pre-deploy-$(date +%Y%m%d-%H%M%S).sql || true
 
-      - name: Helm upgrade + pre-pull image on Pi
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host:     ${{ secrets.PI_HOST }}
-          username: ${{ secrets.PI_USER }}
-          password: ${{ secrets.PI_PASSWORD }}
-          script: |
-            set -e
-            VERSION="${{ steps.version.outputs.version }}"
+      - name: Helm upgrade
+        run: |
+          sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
+            helm upgrade robo-world /tmp/robo-world \
+            --namespace robo-world \
+            --reuse-values \
+            --set image.tag=${{ steps.version.outputs.version }}
 
-            # Pre-pull into k8s.io namespace to avoid CDN cache misses
-            sudo ctr --namespace k8s.io images pull \
-              docker.io/pmananthu/robo-world:${VERSION}
+      - name: Restart pod
+        run: |
+          sudo kubectl delete pods -n robo-world -l app=robo-world --force 2>/dev/null || true
 
-            # Backup DB
-            mkdir -p /DATA/AppData/robo-world/backups
-            sudo kubectl exec -n robo-world deploy/robo-world-postgres -- \
-              pg_dump -U robo_user robo_world \
-              > /DATA/AppData/robo-world/backups/pre-deploy-$(date +%Y%m%d-%H%M%S).sql || true
+      - name: Wait for rollout
+        run: |
+          sudo kubectl rollout status deployment/robo-world \
+            -n robo-world --timeout=120s
 
-            # Helm upgrade
-            cd /tmp && tar xzf robo-world-chart.tar.gz
-            sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
-              helm upgrade robo-world /tmp/robo-world \
-              --namespace robo-world \
-              --reuse-values \
-              --set image.tag=${VERSION}
-
-            # Kill old pod so new one can claim the hostPort
-            sudo kubectl delete pods -n robo-world -l app=robo-world --force 2>/dev/null || true
-
-            # Wait for rollout
-            sudo kubectl rollout status deployment/robo-world \
-              -n robo-world --timeout=120s
+      - name: Health check
+        run: |
+          sleep 5
+          curl -sf http://localhost:30400/health
