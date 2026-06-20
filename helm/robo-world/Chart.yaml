@@ -3,4 +3,4 @@ name: robo-world
 description: Robo World — ESP32 device management server (Fastify + PostgreSQL + Mosquitto)
 type: application
 version: 1.0.3
-appVersion: "1.3.1"
+appVersion: "1.3.2"
