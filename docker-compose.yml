@@ -3,11 +3,11 @@ services:
     image: postgres:16
     restart: unless-stopped
     environment:
-      POSTGRES_DB: electron
-      POSTGRES_USER: electron_user
+      POSTGRES_DB: robo_world
+      POSTGRES_USER: robo_user
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - electron_pg_data:/var/lib/postgresql/data
+      - robo_world_pg_data:/var/lib/postgresql/data
 
   mosquitto:
     image: eclipse-mosquitto:2
@@ -18,12 +18,12 @@ services:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
 
   server:
-    image: pmananthu/electron-server:${VERSION:-latest}
+    image: pmananthu/robo-world:${VERSION:-latest}
     restart: unless-stopped
     ports:
       - "4000:4000"
     environment:
-      DATABASE_URL: postgresql://electron_user:${DB_PASSWORD}@postgres:5432/electron
+      DATABASE_URL: postgresql://robo_user:${DB_PASSWORD}@postgres:5432/robo_world
       MQTT_URL: mqtt://mosquitto:1883
       PORT: 4000
       POCKET_URL: http://192.168.0.107:30600
@@ -33,4 +33,4 @@ services:
       - mosquitto
 
 volumes:
-  electron_pg_data:
+  robo_world_pg_data:

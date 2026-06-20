@@ -40,4 +40,4 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **Infrastructure**
   - `docker-compose.yml` with PostgreSQL 16 + Mosquitto 2 + server
   - `mosquitto.conf` minimal broker config
-  - ARM64 Docker image: `pmananthu/electron-server`
+  - ARM64 Docker image: `pmananthu/robo-world`

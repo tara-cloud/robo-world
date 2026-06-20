@@ -39,7 +39,7 @@ app.register(faceRoutes,     { prefix: '/faces' });
 app.register(projectRoutes,  { prefix: '/projects' });
 app.register(settingsRoutes, { prefix: '/settings' });
 
-app.get('/health', async () => ({ status: 'ok', service: 'electron' }));
+app.get('/health', async () => ({ status: 'ok', service: 'robo-world' }));
 
 initMqtt();
 seedFaces();

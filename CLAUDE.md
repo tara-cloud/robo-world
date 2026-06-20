@@ -1,4 +1,4 @@
-# Electron — Tara Device Management Server
+# Robo World — Tara Device Management Server
 
 ## Overview
 
@@ -12,7 +12,7 @@ OTA, sensor readings, and MQTT bridging.
 ## Repository Structure
 
 ```text
-electron/
+robo-world/
 └── server/                 # Fastify + Prisma device management API
     ├── src/
     │   ├── index.ts
@@ -52,33 +52,22 @@ npm run dev
 | GET | `/device/sensor/:deviceId` | Query readings |
 | GET | `/health` | Health check |
 
-## Component Discovery Flow
-
-1. Firmware scans I2C bus at boot → builds `components[]` payload
-2. `POST /device/register` upserts `DeviceComponent` + `DevicePin` rows
-3. Server UI shows live component topology per device
-
-## Config Flow
-
-1. Device polls `/device/config/version/{id}` every 5 minutes
-2. If version changed → download full config from `/device/config/{id}`
-3. `loadDeviceConfig()` parses JSON and updates live behaviour
-
 ## Deployment
 
 ```bash
 # Build and push server image (ARM64)
 docker buildx build --platform linux/arm64 \
-  -t pmananthu/electron-server:VERSION --push server/
+  -t pmananthu/robo-world:VERSION --push server/
 
-# On Pi
-docker compose -f /DATA/AppData/electron/docker-compose.yml up -d
+# Helm install on Pi (namespace: robo-world, port: 30400)
+cd helm && tar czf /tmp/robo-world-chart.tar.gz robo-world/
+sshpass -p "..." scp /tmp/robo-world-chart.tar.gz pi@192.168.0.107:/tmp/
 ```
 
 ## Environment Variables (server)
 
 ```text
-DATABASE_URL=postgresql://electron_user:<DB_PASSWORD>@postgres:5432/electron
+DATABASE_URL=postgresql://robo_user:<DB_PASSWORD>@postgres:5432/robo_world
 PORT=4000
 MQTT_URL=mqtt://<host>:1883
 ```

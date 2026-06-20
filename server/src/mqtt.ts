@@ -13,7 +13,7 @@ export function getMqtt(): MqttClient {
 
 export function initMqtt() {
     const url = process.env.MQTT_URL ?? 'mqtt://localhost:1883';
-    client = mqtt.connect(url, { clientId: 'electro-server' });
+    client = mqtt.connect(url, { clientId: 'robo-world' });
 
     client.on('connect', () => {
         console.log(`[MQTT] connected to ${url}`);
