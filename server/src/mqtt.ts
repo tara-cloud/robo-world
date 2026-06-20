@@ -20,12 +20,12 @@ export function initMqtt() {
         client!.subscribe('tara/robot/+/heartbeat');
         client!.subscribe('tara/robot/+/sensor');
         client!.subscribe('tara/robot/+/pin_state');
-        client!.subscribe('+/log');          // projectId.log
+        client!.subscribe('+/+/logs');   // {projectId}/{deviceName}/logs
     });
 
     client.on('message', async (topic, payload) => {
-        // projectId.log  (dot-separated, not slash)
-        if (topic.endsWith('/log')) {
+        // {projectId}/{deviceName}/logs
+        if (topic.endsWith('/logs')) {
             await handleLogMessage(topic, payload.toString());
             return;
         }
@@ -44,12 +44,12 @@ export function initMqtt() {
 async function handleLogMessage(topic: string, raw: string) {
     try {
         const body = JSON.parse(raw);
-        // topic = "{projectId}/log" — use as authoritative source
-        const projectId  = topic.split('/')[0] || (body.projectID as string);
-        const deviceName = body.deviceName as string;
-        const level      = (body.level      as string) || 'INFO';
-        const logger     = (body.logger     as string) || topic;
-        const message    = (body.message    as string) || raw;
+        const parts = topic.split('/');   // {projectId}/{deviceName}/logs
+        const projectId  = parts[0] || (body.projectID  as string);
+        const deviceName = parts[1] || (body.deviceName as string);
+        const level      = (body.level   as string) || 'INFO';
+        const logger     = (body.logger  as string) || topic;
+        const message    = (body.message as string) || raw;
 
         if (!projectId || !deviceName) return;
 

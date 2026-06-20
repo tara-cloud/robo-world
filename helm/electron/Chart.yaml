@@ -1,6 +1,0 @@
-apiVersion: v2
-name: electron
-description: Electron — ESP32 device management server (Fastify + PostgreSQL + Mosquitto)
-type: application
-version: 1.0.3
-appVersion: "1.2.8"

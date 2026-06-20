@@ -1,8 +1,8 @@
-# Electron Helm Chart — default values
+# Robo World Helm Chart — default values
 
 image:
-  repository: pmananthu/electron-server
-  tag: "1.2.6"
+  repository: pmananthu/robo-world
+  tag: "1.3.0"
   pullPolicy: IfNotPresent
 
 replicaCount: 1
@@ -20,10 +20,10 @@ mosquitto:
 # PostgreSQL
 postgres:
   image: postgres:16-alpine
-  database: electron
-  user: electron_user
-  password: electron_secure_pass
-  dataPath: /var/lib/electron/postgres
+  database: robo_world
+  user: robo_user
+  password: robo_secure_pass
+  dataPath: /var/lib/robo-world/postgres
   storageSize: 2Gi
 
 # App config
