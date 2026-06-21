@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { db } from '../db';
 import { publishToRobot, getMqtt } from '../mqtt';
 import { buildFacesMap } from './face';
+import { getSetting } from './settings';
 
 export async function robotRoutes(app: FastifyInstance) {
     // GET /robot — list all registered robots with latest health
@@ -231,9 +232,10 @@ export async function robotRoutes(app: FastifyInstance) {
 
     // POST /robot/:deviceId/ota-push — publish OTA command directly via MQTT
     // Topic: {projectId}.{deviceName}.ota  payload: { version, url, apiKey }
+    // apiKey is read from DB settings (pocketToken) — UI doesn't need to send it
     app.post<{
         Params: { deviceId: string };
-        Body:   { version: string; url: string; apiKey?: string };
+        Body:   { version: string; url: string };
     }>('/:deviceId/ota-push', async (req, reply) => {
         const device = await db.device.findUnique({
             where:   { deviceId: req.params.deviceId },
@@ -242,8 +244,11 @@ export async function robotRoutes(app: FastifyInstance) {
         if (!device) return reply.code(404).send({ error: 'device not found' });
         if (!device.project) return reply.code(400).send({ error: 'device not assigned to a project' });
 
-        const { version, url, apiKey } = req.body;
+        const { version, url } = req.body;
         if (!version || !url) return reply.code(400).send({ error: 'version and url required' });
+
+        // Always pull pocketToken from DB — single source of truth
+        const apiKey = await getSetting('pocketToken');
 
         const topic = `${device.project.projectId}.${device.deviceName}.ota`;
         const payload: Record<string, string> = { version, url };

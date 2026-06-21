@@ -1635,10 +1635,13 @@ function renderFirmware(deviceId, device) {
     </div>`;
 }
 
-// In-memory settings cache — populated from DB on openSettings()
-let _settingsCache = {};
+// Settings — always fetched from server (DB), never cached on first read
+let _settingsCache = null;
 
-function loadSettings() {
+async function loadSettings() {
+  if (!_settingsCache) {
+    _settingsCache = await api('GET', '/settings').catch(() => ({}));
+  }
   return _settingsCache;
 }
 async function saveSettings() {
@@ -1658,6 +1661,7 @@ async function openSettings() {
   document.getElementById('hdr-back-btn').style.display  = 'none';
   document.getElementById('hdr-breadcrumb').style.display = 'none';
   try {
+    // Always re-fetch when opening settings page
     const cfg = await api('GET', '/settings');
     _settingsCache = cfg;
     document.getElementById('set-pocket-url').value  = cfg.pocketUrl   || '';
@@ -1687,7 +1691,7 @@ function saveOtaConfig(deviceId) {
 
 async function checkOTA(deviceId) {
   const cfg = loadOtaCfg(deviceId);
-  const s   = loadSettings();
+  const s   = await loadSettings();
   if (!s.pocketUrl) { toast('Set Pocket URL in ⚙ Settings first', false); return; }
   const el = document.getElementById(`ota-status-${deviceId}`);
   el.innerHTML = '<p style="color:var(--muted);font-size:.82rem">Checking…</p>';
@@ -1721,7 +1725,7 @@ async function checkOTA(deviceId) {
 }
 
 async function pushOTA(deviceId, version, url) {
-  const s = loadSettings();
+  const s = await loadSettings();
   try {
     const res = await api('POST', `/robot/${deviceId}/ota-push`, {
       version,
