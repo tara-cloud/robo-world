@@ -304,8 +304,8 @@
       <h3>Health-check Retention</h3>
       <div style="display:flex;flex-direction:column;gap:12px;margin-top:4px">
         <label class="field">
-          <span>Delete health-check packets older than (days)</span>
-          <input id="set-health-ttl" type="number" min="0" max="365" placeholder="7"
+          <span>Delete health-check packets older than (hours)</span>
+          <input id="set-health-ttl" type="number" min="0" max="8760" placeholder="24"
             style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.85rem;width:100%" />
         </label>
         <div style="font-size:.75rem;color:var(--muted)">Set to 0 to disable automatic pruning. Pruning runs at startup and every hour.</div>
@@ -1765,7 +1765,7 @@ async function openSettings() {
     document.getElementById('set-pocket-url').value  = cfg.pocketUrl   || '';
     document.getElementById('set-pocket-key').value  = cfg.pocketToken || '';
     document.getElementById('set-log-ttl').value        = cfg.logTtlDays       ?? '30';
-    document.getElementById('set-health-ttl').value     = cfg.healthTtlDays    ?? '7';
+    document.getElementById('set-health-ttl').value     = cfg.healthTtlHours   ?? '24';
     document.getElementById('set-health-refresh').value = cfg.healthRefreshSec ?? '30';
   } catch(e) { toast('Failed to load settings: ' + e.message, false); }
 }
@@ -1783,12 +1783,12 @@ async function saveLogRetention() {
 }
 
 async function saveHealthRetention() {
-  const days = document.getElementById('set-health-ttl').value.trim();
-  const ttl  = parseInt(days);
-  if (isNaN(ttl) || ttl < 0) { toast('Enter a valid number of days (0 = disabled)', false); return; }
+  const hrs = document.getElementById('set-health-ttl').value.trim();
+  const ttl = parseInt(hrs);
+  if (isNaN(ttl) || ttl < 0) { toast('Enter a valid number of hours (0 = disabled)', false); return; }
   try {
-    await api('PUT', '/settings', { healthTtlDays: String(ttl) });
-    _settingsCache = { ...(_settingsCache||{}), healthTtlDays: String(ttl) };
+    await api('PUT', '/settings', { healthTtlHours: String(ttl) });
+    _settingsCache = { ...(_settingsCache||{}), healthTtlHours: String(ttl) };
     toast('Health-check retention saved');
   } catch(e) {
     toast('Failed to save: ' + e.message, false);

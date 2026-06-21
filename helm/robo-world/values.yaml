@@ -2,7 +2,7 @@
 
 image:
   repository: pmananthu/robo-world
-  tag: "1.4.3"
+  tag: "1.4.4"
   pullPolicy: IfNotPresent
 
 replicaCount: 1

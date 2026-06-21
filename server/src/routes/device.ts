@@ -93,7 +93,7 @@ export async function deviceRoutes(app: FastifyInstance) {
                     deviceType,
                     mqttHost:    proj.mqttHost || '',
                     mqttPort:    proj.mqttPort,
-                    healthcheck: { enabled: false, frequency: 60 },
+                    healthcheck: { enabled: true, frequency: 60 },
                 };
                 await db.deviceConfig.create({
                     data: { deviceId, version: '1', config: configToSend as object },

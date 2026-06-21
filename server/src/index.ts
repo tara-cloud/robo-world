@@ -45,18 +45,18 @@ initMqtt();
 seedFaces();
 
 async function pruneOldData() {
-    const logTtl    = parseInt(await getSetting('logTtlDays'));
-    const healthTtl = parseInt(await getSetting('healthTtlDays'));
+    const logTtl       = parseInt(await getSetting('logTtlDays'));
+    const healthTtlHrs = parseInt(await getSetting('healthTtlHours'));
 
     if (logTtl > 0) {
         const cutoff = new Date(Date.now() - logTtl * 86_400_000);
         const { count } = await db.deviceLog.deleteMany({ where: { createdAt: { lt: cutoff } } });
         if (count > 0) console.log(`[LogPrune] deleted ${count} log entries older than ${logTtl}d`);
     }
-    if (healthTtl > 0) {
-        const cutoff = new Date(Date.now() - healthTtl * 86_400_000);
+    if (healthTtlHrs > 0) {
+        const cutoff = new Date(Date.now() - healthTtlHrs * 3_600_000);
         const { count } = await db.deviceHealth.deleteMany({ where: { createdAt: { lt: cutoff } } });
-        if (count > 0) console.log(`[HealthPrune] deleted ${count} health entries older than ${healthTtl}d`);
+        if (count > 0) console.log(`[HealthPrune] deleted ${count} health entries older than ${healthTtlHrs}h`);
     }
 }
 

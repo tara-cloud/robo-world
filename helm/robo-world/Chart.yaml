@@ -2,5 +2,5 @@ apiVersion: v2
 name: robo-world
 description: Robo World — ESP32 device management server (Fastify + PostgreSQL + Mosquitto)
 type: application
-version: 1.1.3
-appVersion: "1.4.3"
+version: 1.1.4
+appVersion: "1.4.4"
