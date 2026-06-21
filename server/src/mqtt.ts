@@ -95,6 +95,16 @@ async function handleHealthMessage(topic: string, raw: string) {
         await db.deviceHealth.create({
             data: { projectId, deviceName, firmwareVersion, status, components, timestamp },
         });
+
+        // Health-check doubles as a liveness signal — refresh Device.lastSeen
+        // (this firmware doesn't send the legacy tara/robot/+/heartbeat topic)
+        await db.device.updateMany({
+            where: { deviceName },
+            data:  {
+                lastSeen: new Date(),
+                ...(firmwareVersion ? { firmwareVersion } : {}),
+            },
+        }).catch(() => { /* device may not be registered yet */ });
     } catch { /* malformed payload */ }
 }
 

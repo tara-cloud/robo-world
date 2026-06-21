@@ -407,7 +407,7 @@ async function api(method, path, body) {
   if (!res.ok) throw new Error(`${res.status}`);
   return res.json();
 }
-function isOnline(lastSeen) { return Date.now() - new Date(lastSeen).getTime() < 90000; }
+function isOnline(lastSeen) { return Date.now() - new Date(lastSeen).getTime() < 180000; }
 function ago(iso) {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 60) return `${s}s ago`;
