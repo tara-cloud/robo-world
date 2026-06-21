@@ -1906,52 +1906,99 @@ function compDir(gpins) {
   return 'structural';
 }
 
+// p.component arrives from the API as { name, type, protocol } — unwrap defensively
+function pinCompName(p) {
+  if (!p) return '';
+  if (p.component && typeof p.component === 'object') return p.component.name || '';
+  return p.component || '';
+}
+
 function compCfgKey(deviceId, component) { return `comp_cfg_${deviceId}_${encodeURIComponent(component)}`; }
 function getCompCfg(deviceId, component)  { return JSON.parse(localStorage.getItem(compCfgKey(deviceId, component)) || 'null') || {}; }
 function setCompCfg(deviceId, component, cfg) { localStorage.setItem(compCfgKey(deviceId, component), JSON.stringify(cfg)); }
 
 function renderHardware(deviceId, pins) {
+  const slot = document.getElementById('tab-components');
+  if (!slot) return;
+
   const groups = {};
   for (const p of pins) {
-    const key = p.component || 'Uncategorised';
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(p);
+    const compName = pinCompName(p) || 'Uncategorised';
+    if (!groups[compName]) groups[compName] = { pins: [], type: '', protocol: '' };
+    groups[compName].pins.push(p);
+    if (p.component && typeof p.component === 'object') {
+      groups[compName].type     = p.component.type     || groups[compName].type;
+      groups[compName].protocol = p.component.protocol || groups[compName].protocol;
+    }
   }
 
   const dirLabels  = { input:'SENSOR', output:'ACTUATOR', mixed:'MIXED', structural:'BUS' };
   const dirClasses = { input:'input', output:'output', mixed:'', structural:'' };
 
-  const cardsHtml = Object.entries(groups).map(([component, gpins]) => {
-    const dir    = compDir(gpins);
-    const pnHtml = gpins.map(p => `<code>${p.pin}</code>`).join(' ');
-    const activeQ = gpins.find(p => getQueue(deviceId, p.label));
-    const qBadge  = activeQ ? `<span style="font-size:.68rem;color:var(--accent)">⟳</span>` : '';
-    const cfg     = getCompCfg(deviceId, component);
-    const typeBadge = cfg.type ? `<span style="font-size:.68rem;color:var(--muted)">${cfg.type}</span>` : '';
-    return `<div class="comp-card" onclick="openComponentInline('${deviceId}','${encodeURIComponent(component)}')">
-      <div class="cname">${component}</div>
-      <div class="cmeta">
-        <span class="badge ${dirClasses[dir]}" style="${dirClasses[dir] ? '' : 'background:var(--surface2);color:var(--muted)'}">${dirLabels[dir]}</span>
-        ${pnHtml} ${qBadge} ${typeBadge}
-      </div>
-    </div>`;
-  }).join('');
-
-  document.getElementById('tab-components').innerHTML = `
-    <div style="padding:4px 0 8px;display:flex;align-items:center;justify-content:space-between">
+  // Render shell first
+  slot.innerHTML = `
+    <div style="padding:4px 0 10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <span style="font-size:.72rem;color:var(--muted)">Click a component to configure</span>
       <button class="btn btn-primary btn-sm" onclick="showAddPin('${deviceId}')">+ Add Pin</button>
     </div>
-    ${pins.length ? cardsHtml : '<p style="color:var(--muted);font-size:.82rem">No components registered.</p>'}
+    <div id="comp-grid-${deviceId}" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px"></div>
     <div id="comp-inline-detail" style="margin-top:14px"></div>
     <div id="add-pin-form"></div>`;
+
+  const grid = document.getElementById(`comp-grid-${deviceId}`);
+  if (!pins.length) {
+    grid.innerHTML = '<p style="color:var(--muted);font-size:.82rem">No components registered.</p>';
+    return;
+  }
+
+  function cardHtml(component, info, healthMap) {
+    const gpins  = info.pins;
+    const dir    = compDir(gpins);
+    const pnHtml = gpins.map(p => `<code>${p.pin}</code>`).join(' ');
+    const activeQ = gpins.find(p => getQueue(deviceId, p.label));
+    const qBadge  = activeQ ? `<span title="Has queue binding" style="font-size:.7rem;color:var(--accent)">⟳</span>` : '';
+    const typeBadge = info.type ? `<span class="badge" style="background:var(--surface2);color:var(--muted);font-size:.65rem">${info.type}</span>` : '';
+    const protoBadge = info.protocol ? `<span class="badge" style="background:var(--surface2);color:var(--muted);font-size:.65rem">${info.protocol}</span>` : '';
+
+    // Live status from healthcheck components
+    let healthPill = '';
+    const h = healthMap[component];
+    if (h) {
+      const c = h === 'Healthy' ? 'var(--green)' : h === 'Error' ? 'var(--red)' : 'var(--muted)';
+      healthPill = `<span class="badge" style="background:var(--surface2);color:${c};font-size:.65rem;font-weight:600">● ${h}</span>`;
+    }
+
+    return `<div class="comp-card" onclick="openComponentInline('${deviceId}','${encodeURIComponent(component)}')"
+              style="padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+        <div class="cname" style="font-weight:600;font-size:.88rem">${component}</div>
+        ${healthPill}
+      </div>
+      <div class="cmeta" style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;font-size:.72rem;color:var(--muted)">
+        <span class="badge ${dirClasses[dir]}" style="${dirClasses[dir] ? '' : 'background:var(--surface2);color:var(--muted)'};font-size:.65rem">${dirLabels[dir]}</span>
+        ${typeBadge}
+        ${protoBadge}
+        ${qBadge}
+      </div>
+      <div style="font-size:.72rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px">${pnHtml}</div>
+    </div>`;
+  }
+
+  // Build live status map from latest health-check, then render
+  api('GET', `/robot/${deviceId}/health/latest`).catch(() => null).then(hc => {
+    const healthMap = {};
+    if (hc && Array.isArray(hc.components)) {
+      for (const c of hc.components) healthMap[c.name] = c.status;
+    }
+    grid.innerHTML = Object.entries(groups).map(([n, info]) => cardHtml(n, info, healthMap)).join('');
+  });
 }
 
 // ── Component detail — inline inside Hardware tab ─────────────────────────
 
 function openComponentInline(deviceId, componentEncoded) {
   const component = decodeURIComponent(componentEncoded);
-  const pins = devicePins.filter(p => p.component === component);
+  const pins = devicePins.filter(p => pinCompName(p) === component);
   renderComponentInline(deviceId, component, pins);
 }
 
@@ -2073,20 +2120,20 @@ function saveQueueTopic(deviceId, pinLabel, component, kind) {
   if (!topic) { toast('Topic required', false); return; }
   setQueue(deviceId, pinLabel, { topic, direction: kind });
   toast('Queue topic saved');
-  renderComponentInline(deviceId, component, devicePins.filter(p => p.component === component));
+  renderComponentInline(deviceId, component, devicePins.filter(p => pinCompName(p) === component));
   renderHardware(deviceId, devicePins);
 }
 
 function clearQueueTopic(deviceId, pinLabel, component) {
   localStorage.removeItem(queueKey(deviceId, pinLabel));
   toast('Queue cleared');
-  renderComponentInline(deviceId, component, devicePins.filter(p => p.component === component));
+  renderComponentInline(deviceId, component, devicePins.filter(p => pinCompName(p) === component));
   renderHardware(deviceId, devicePins);
 }
 
 async function deleteComponent(deviceId, componentEncoded) {
   const component = decodeURIComponent(componentEncoded);
-  const pins = devicePins.filter(p => p.component === component);
+  const pins = devicePins.filter(p => pinCompName(p) === component);
   if (!confirm(`Delete all ${pins.length} pins of "${component}"?`)) return;
   try {
     for (const p of pins) {
