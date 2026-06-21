@@ -113,14 +113,15 @@ model PipelineRule {
 }
 
 model DeviceLog {
-  id         String   @id @default(cuid())
-  projectId  String
-  deviceName String
-  timestamp  DateTime @default(now())
-  level      String
-  logger     String
-  message    String
-  createdAt  DateTime @default(now())
+  id              String   @id @default(cuid())
+  projectId       String
+  deviceName      String
+  firmwareVersion String   @default("")
+  timestamp       DateTime @default(now())
+  level           String
+  logger          String
+  message         String
+  createdAt       DateTime @default(now())
 
   @@index([projectId, createdAt])
 }

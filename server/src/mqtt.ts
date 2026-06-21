@@ -44,17 +44,18 @@ export function initMqtt() {
 async function handleLogMessage(topic: string, raw: string) {
     try {
         const body = JSON.parse(raw);
-        const parts = topic.split('/');   // {projectId}/{deviceName}/logs
-        const projectId  = parts[0] || (body.projectID  as string);
-        const deviceName = parts[1] || (body.deviceName as string);
-        const level      = (body.level   as string) || 'INFO';
-        const logger     = (body.logger  as string) || topic;
-        const message    = (body.message as string) || raw;
+        const parts           = topic.split('/');   // {projectId}/{deviceName}/logs
+        const projectId       = parts[0] || (body.projectID       as string);
+        const deviceName      = parts[1] || (body.deviceName      as string);
+        const level           = (body.level           as string) || 'INFO';
+        const logger          = (body.logger          as string) || topic;
+        const message         = (body.message         as string) || raw;
+        const firmwareVersion = (body.firmwareVersion as string) || '';
 
         if (!projectId || !deviceName) return;
 
         await db.deviceLog.create({
-            data: { projectId, deviceName, level, logger, message },
+            data: { projectId, deviceName, level, logger, message, firmwareVersion },
         });
 
         // Keep max 500 logs per project — delete oldest beyond that

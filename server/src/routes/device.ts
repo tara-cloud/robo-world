@@ -75,21 +75,48 @@ export async function deviceRoutes(app: FastifyInstance) {
 
         const slug = deviceWithProject?.project?.projectId ?? null;
 
-        // Push config to device via MQTT immediately after registration
+        // Create default config on first registration; re-push latest on restart
         if (deviceWithProject?.project) {
             const proj = deviceWithProject.project;
-            const configTopic = `${proj.projectId}.${deviceName}.${proj.configTopic}`;
-            const configPayload = JSON.stringify({
+
+            const existingConfig = await db.deviceConfig.findFirst({
+                where:   { deviceId },
+                orderBy: { createdAt: 'desc' },
+            });
+
+            let configToSend: Record<string, unknown>;
+
+            if (!existingConfig) {
+                // First registration — create and persist default config
+                configToSend = {
+                    deviceName,
+                    deviceType,
+                    mqttHost:    proj.mqttHost || '',
+                    mqttPort:    proj.mqttPort,
+                    healthcheck: { enabled: false, frequency: 60 },
+                };
+                await db.deviceConfig.create({
+                    data: { deviceId, version: '1', config: configToSend as object },
+                });
+            } else {
+                // Re-registration — use latest saved config
+                configToSend = existingConfig.config as Record<string, unknown>;
+            }
+
+            // Small delay — gives device time to subscribe to its config topic
+            // before the retained message is delivered
+            await new Promise(r => setTimeout(r, 500));
+
+            // Publish retained so device receives it even if it subscribes after this
+            const topic = `${proj.projectId}.${deviceName}.${proj.configTopic}`;
+            const payload = JSON.stringify({
+                ...configToSend,
                 projectID:   proj.projectId,
                 projectName: proj.name,
-                deviceName,
-                deviceType,
-                mqttHost:    proj.mqttHost,
-                mqttPort:    proj.mqttPort,
             });
             try {
-                getMqtt().publish(configTopic, configPayload, { qos: 1, retain: true });
-            } catch { /* MQTT may not be ready — device will get it on next connect */ }
+                getMqtt().publish(topic, payload, { qos: 1, retain: true });
+            } catch { /* MQTT not ready — device will receive on next retained delivery */ }
         }
 
         return reply.code(200).send({ id: device.id, deviceId: device.deviceId, projectId: slug });

@@ -1635,29 +1635,35 @@ function renderFirmware(deviceId, device) {
     </div>`;
 }
 
+// In-memory settings cache — populated from DB on openSettings()
+let _settingsCache = {};
+
 function loadSettings() {
-  return JSON.parse(localStorage.getItem('electro_settings') || '{}');
+  return _settingsCache;
 }
-function saveSettings() {
+async function saveSettings() {
   const pocketUrl   = document.getElementById('set-pocket-url').value.trim();
   const pocketToken = document.getElementById('set-pocket-key').value.trim();
-  localStorage.setItem('electro_settings', JSON.stringify({ pocketUrl, pocketToken }));
-  toast('Settings saved');
+  try {
+    await api('PUT', '/settings', { pocketUrl, pocketToken });
+    _settingsCache = { ..._settingsCache, pocketUrl, pocketToken };
+    toast('Settings saved');
+  } catch(e) { toast('Save failed: ' + e.message, false); }
 }
-function openSettings() {
-  const s = loadSettings();
+async function openSettings() {
   document.getElementById('view-home').style.display     = 'none';
   document.getElementById('view-project').style.display  = 'none';
   document.getElementById('view-settings').style.display = '';
   document.getElementById('hdr-new-btn').style.display   = 'none';
   document.getElementById('hdr-back-btn').style.display  = 'none';
   document.getElementById('hdr-breadcrumb').style.display = 'none';
-  document.getElementById('set-pocket-url').value  = s.pocketUrl   || '';
-  document.getElementById('set-pocket-key').value  = s.pocketToken || '';
-  // Load TTL from server
-  api('GET', '/settings').then(cfg => {
-    document.getElementById('set-log-ttl').value = cfg.logTtlDays ?? '30';
-  }).catch(() => {});
+  try {
+    const cfg = await api('GET', '/settings');
+    _settingsCache = cfg;
+    document.getElementById('set-pocket-url').value  = cfg.pocketUrl   || '';
+    document.getElementById('set-pocket-key').value  = cfg.pocketToken || '';
+    document.getElementById('set-log-ttl').value     = cfg.logTtlDays  ?? '30';
+  } catch(e) { toast('Failed to load settings: ' + e.message, false); }
 }
 
 async function saveLogRetention() {
