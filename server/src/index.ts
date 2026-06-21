@@ -44,17 +44,25 @@ app.get('/health', async () => ({ status: 'ok', service: 'robo-world' }));
 initMqtt();
 seedFaces();
 
-async function pruneOldLogs() {
-    const ttlDays = parseInt(await getSetting('logTtlDays'));
-    if (!ttlDays || ttlDays <= 0) return;
-    const cutoff = new Date(Date.now() - ttlDays * 86_400_000);
-    const { count } = await db.deviceLog.deleteMany({ where: { createdAt: { lt: cutoff } } });
-    if (count > 0) console.log(`[LogPrune] deleted ${count} entries older than ${ttlDays}d`);
+async function pruneOldData() {
+    const logTtl    = parseInt(await getSetting('logTtlDays'));
+    const healthTtl = parseInt(await getSetting('healthTtlDays'));
+
+    if (logTtl > 0) {
+        const cutoff = new Date(Date.now() - logTtl * 86_400_000);
+        const { count } = await db.deviceLog.deleteMany({ where: { createdAt: { lt: cutoff } } });
+        if (count > 0) console.log(`[LogPrune] deleted ${count} log entries older than ${logTtl}d`);
+    }
+    if (healthTtl > 0) {
+        const cutoff = new Date(Date.now() - healthTtl * 86_400_000);
+        const { count } = await db.deviceHealth.deleteMany({ where: { createdAt: { lt: cutoff } } });
+        if (count > 0) console.log(`[HealthPrune] deleted ${count} health entries older than ${healthTtl}d`);
+    }
 }
 
 // Run at startup then every hour
-pruneOldLogs();
-setInterval(pruneOldLogs, 60 * 60 * 1000);
+pruneOldData();
+setInterval(pruneOldData, 60 * 60 * 1000);
 
 const port = parseInt(process.env.PORT ?? '4000');
 const host = process.env.HOST ?? '0.0.0.0';

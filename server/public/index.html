@@ -299,6 +299,21 @@
         </div>
       </div>
     </div>
+
+    <div class="card" style="max-width:480px;margin-top:16px">
+      <h3>Health-check Retention</h3>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:4px">
+        <label class="field">
+          <span>Delete health-check packets older than (days)</span>
+          <input id="set-health-ttl" type="number" min="0" max="365" placeholder="7"
+            style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.85rem;width:100%" />
+        </label>
+        <div style="font-size:.75rem;color:var(--muted)">Set to 0 to disable automatic pruning. Pruning runs at startup and every hour.</div>
+        <div>
+          <button class="btn btn-primary" onclick="saveHealthRetention()">Save</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1503,7 +1518,34 @@ function renderHealth(d) {
       ${d.ipAddress ? `<tr><th>IP Address</th><td><code>${d.ipAddress}</code></td></tr>` : ''}
       <tr><th>Registered</th><td>${new Date(d.createdAt).toLocaleString()}</td></tr>
     </table></div>
-    ${r ? buildSensorCard(r) : ''}`;
+    ${r ? buildSensorCard(r) : ''}
+    <div id="health-check-card-${d.deviceId}"></div>`;
+
+  // Fetch latest health-check packet asynchronously
+  api('GET', `/robot/${d.deviceId}/health/latest`).then(hc => {
+    if (!hc) return;
+    const slot = document.getElementById(`health-check-card-${d.deviceId}`);
+    if (!slot) return;
+    const statusColor = hc.status === 'Online' ? 'var(--green)' :
+                        hc.status === 'Error'  ? 'var(--red)'   : 'var(--muted)';
+    const compRows = (hc.components || []).map(c =>
+      `<tr><td>${c.name}</td><td><span class="badge" style="background:var(--surface2);color:${
+        c.status === 'Healthy' ? 'var(--green)' : c.status === 'Error' ? 'var(--red)' : 'var(--muted)'
+      }">${c.status}</span></td></tr>`
+    ).join('');
+    slot.innerHTML = `
+      <div class="card"><h3>Health Check — ${ago(hc.createdAt)}</h3>
+        <table>
+          <tr><th>Status</th><td><span style="color:${statusColor};font-weight:600">${hc.status}</span></td></tr>
+          ${hc.firmwareVersion ? `<tr><th>Firmware</th><td><code>${hc.firmwareVersion}</code></td></tr>` : ''}
+          <tr><th>Reported</th><td>${hc.timestamp || '—'}</td></tr>
+        </table>
+        ${compRows ? `<table style="margin-top:10px">
+          <thead><tr><th>Component</th><th>Status</th></tr></thead>
+          <tbody>${compRows}</tbody>
+        </table>` : ''}
+      </div>`;
+  }).catch(() => {});
 }
 
 // ── Tab: Config ────────────────────────────────────────────────────────────
@@ -1666,7 +1708,8 @@ async function openSettings() {
     _settingsCache = cfg;
     document.getElementById('set-pocket-url').value  = cfg.pocketUrl   || '';
     document.getElementById('set-pocket-key').value  = cfg.pocketToken || '';
-    document.getElementById('set-log-ttl').value     = cfg.logTtlDays  ?? '30';
+    document.getElementById('set-log-ttl').value     = cfg.logTtlDays    ?? '30';
+    document.getElementById('set-health-ttl').value  = cfg.healthTtlDays ?? '7';
   } catch(e) { toast('Failed to load settings: ' + e.message, false); }
 }
 
@@ -1677,6 +1720,18 @@ async function saveLogRetention() {
   try {
     await api('PUT', '/settings', { logTtlDays: String(ttl) });
     toast('Log retention saved');
+  } catch(e) {
+    toast('Failed to save: ' + e.message, false);
+  }
+}
+
+async function saveHealthRetention() {
+  const days = document.getElementById('set-health-ttl').value.trim();
+  const ttl  = parseInt(days);
+  if (isNaN(ttl) || ttl < 0) { toast('Enter a valid number of days (0 = disabled)', false); return; }
+  try {
+    await api('PUT', '/settings', { healthTtlDays: String(ttl) });
+    toast('Health-check retention saved');
   } catch(e) {
     toast('Failed to save: ' + e.message, false);
   }

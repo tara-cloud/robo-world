@@ -31,6 +31,44 @@ export async function robotRoutes(app: FastifyInstance) {
         }
     );
 
+    // GET /robot/:deviceId/health/latest — most recent health-check packet
+    app.get<{ Params: { deviceId: string } }>(
+        '/:deviceId/health/latest',
+        async (req, reply) => {
+            const device = await db.device.findUnique({
+                where:   { deviceId: req.params.deviceId },
+                include: { project: true },
+            });
+            if (!device || !device.project) return reply.send(null);
+
+            const latest = await db.deviceHealth.findFirst({
+                where:   { projectId: device.project.projectId, deviceName: device.deviceName },
+                orderBy: { createdAt: 'desc' },
+            });
+            return reply.send(latest);
+        }
+    );
+
+    // GET /robot/:deviceId/health?limit=20 — recent health-check history
+    app.get<{
+        Params:      { deviceId: string };
+        Querystring: { limit?: string };
+    }>('/:deviceId/health', async (req, reply) => {
+        const device = await db.device.findUnique({
+            where:   { deviceId: req.params.deviceId },
+            include: { project: true },
+        });
+        if (!device || !device.project) return reply.send([]);
+
+        const limit = Math.min(parseInt(req.query.limit ?? '20'), 100);
+        const rows = await db.deviceHealth.findMany({
+            where:   { projectId: device.project.projectId, deviceName: device.deviceName },
+            orderBy: { createdAt: 'desc' },
+            take:    isNaN(limit) ? 20 : limit,
+        });
+        return reply.send(rows);
+    });
+
     // POST /robot/:deviceId/display — send face name command
     // Device looks up the face in its local cache and renders it.
     app.post<{

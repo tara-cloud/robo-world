@@ -126,6 +126,19 @@ model DeviceLog {
   @@index([projectId, createdAt])
 }
 
+model DeviceHealth {
+  id              String   @id @default(cuid())
+  projectId       String
+  deviceName      String
+  firmwareVersion String   @default("")
+  status          String
+  components      Json
+  timestamp       String   @default("")
+  createdAt       DateTime @default(now())
+
+  @@index([projectId, deviceName, createdAt])
+}
+
 model Face {
   id        String   @id @default(cuid())
   name      String   @unique

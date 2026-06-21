@@ -21,9 +21,16 @@ export function initMqtt() {
         client!.subscribe('tara/robot/+/sensor');
         client!.subscribe('tara/robot/+/pin_state');
         client!.subscribe('+/+/logs');   // {projectId}/{deviceName}/logs
+        client!.subscribe('+');          // dotted: {projectId}.{deviceName}.healthcheck
     });
 
     client.on('message', async (topic, payload) => {
+        // {projectId}.{deviceName}.healthcheck (dot-separated, single MQTT level)
+        if (topic.endsWith('.healthcheck')) {
+            await handleHealthMessage(topic, payload.toString());
+            return;
+        }
+
         // {projectId}/{deviceName}/logs
         if (topic.endsWith('/logs')) {
             await handleLogMessage(topic, payload.toString());
@@ -69,6 +76,25 @@ async function handleLogMessage(topic: string, raw: string) {
             });
             await db.deviceLog.deleteMany({ where: { id: { in: oldest.map(l => l.id) } } });
         }
+    } catch { /* malformed payload */ }
+}
+
+async function handleHealthMessage(topic: string, raw: string) {
+    try {
+        const body  = JSON.parse(raw);
+        const parts = topic.split('.');   // {projectId}.{deviceName}.healthcheck
+        const projectId       = parts[0] || (body.projectId       as string);
+        const deviceName      = parts[1] || (body.deviceName      as string);
+        const firmwareVersion = (body.firmwareVersion as string) || '';
+        const status          = (body.status          as string) || 'Online';
+        const components      = body.components ?? [];
+        const timestamp       = (body.timestamp       as string) || '';
+
+        if (!projectId || !deviceName) return;
+
+        await db.deviceHealth.create({
+            data: { projectId, deviceName, firmwareVersion, status, components, timestamp },
+        });
     } catch { /* malformed payload */ }
 }
 
