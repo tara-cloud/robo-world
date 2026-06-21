@@ -314,6 +314,21 @@
         </div>
       </div>
     </div>
+
+    <div class="card" style="max-width:480px;margin-top:16px">
+      <h3>Health Page Refresh Rate</h3>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:4px">
+        <label class="field">
+          <span>Refresh interval (seconds)</span>
+          <input id="set-health-refresh" type="number" min="0" max="3600" placeholder="30"
+            style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:.85rem;width:100%" />
+        </label>
+        <div style="font-size:.75rem;color:var(--muted)">How often the Health tab re-fetches latest packet. Set to 0 to disable auto-refresh. Online/Offline considers heartbeat AND health-check whichever is most recent.</div>
+        <div>
+          <button class="btn btn-primary" onclick="saveHealthRefresh()">Save</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -370,6 +385,10 @@ let selectedProj  = null;
 let currentProjId = null;  // project open in project view
 let selected      = null;  // deviceId
 let devicePins    = [];
+let _healthRefreshTimer = null;
+function clearHealthRefresh() {
+  if (_healthRefreshTimer) { clearInterval(_healthRefreshTimer); _healthRefreshTimer = null; }
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function toast(msg, ok = true) {
@@ -438,6 +457,7 @@ async function loadAll() {
 
 // ── Home view ──────────────────────────────────────────────────────────────
 function goHome() {
+  clearHealthRefresh();
   currentProjId = null;
   selectedProj  = null;
   selected      = null;
@@ -673,6 +693,7 @@ function renderLogsTable(projId) {
         <td style="color:var(--muted);font-weight:600;white-space:nowrap">Time</td>
         <td style="color:var(--muted);font-weight:600">Level</td>
         <td style="color:var(--muted);font-weight:600">Device</td>
+        <td style="color:var(--muted);font-weight:600;white-space:nowrap">FW</td>
         <td style="color:var(--muted);font-weight:600">Logger</td>
         <td style="color:var(--muted);font-weight:600;width:100%">Message</td>
       </tr>
@@ -681,10 +702,12 @@ function renderLogsTable(projId) {
       ${filtered.map(l => {
         const ts  = new Date(l.createdAt).toLocaleTimeString('en-IN', { hour12:false });
         const col = LOG_LEVEL_COLORS[l.level] || 'var(--text)';
+        const fw  = l.firmwareVersion ? `v${l.firmwareVersion}` : '—';
         return `<tr>
           <td style="color:var(--muted);white-space:nowrap">${ts}</td>
           <td style="color:${col};font-weight:600;white-space:nowrap">${l.level}</td>
           <td style="color:var(--muted);white-space:nowrap">${l.deviceName}</td>
+          <td style="color:var(--muted);white-space:nowrap;font-family:var(--mono,monospace);font-size:.72rem">${fw}</td>
           <td style="color:var(--muted);white-space:nowrap">${l.logger}</td>
           <td style="color:${col}">${l.message}</td>
         </tr>`;
@@ -1451,6 +1474,7 @@ async function unassignDevice(projId, deviceId) {
 
 // ── Device detail ─────────────────────────────────────────────────────────
 async function selectDevice(id) {
+  clearHealthRefresh();
   selected = id;
   // Refresh nav active state
   if (currentProjId) {
@@ -1502,30 +1526,45 @@ function buildSensorCard(r) {
   </table></div>`;
 }
 function renderHealth(d) {
-  const online = isOnline(d.lastSeen);
-  const r = (d.readings||[])[0];
-  document.getElementById('tab-health').innerHTML = `
-    <div class="card"><h3>Status</h3>
-      <div class="health-grid">
-        <div class="stat"><div class="val" style="color:${online?'var(--green)':'var(--red)'}">${online?'ONLINE':'OFFLINE'}</div><div class="lbl">Status</div></div>
-        <div class="stat"><div class="val">${d.firmwareVersion}</div><div class="lbl">Firmware</div></div>
-        <div class="stat"><div class="val" style="font-size:1rem">${ago(d.lastSeen)}</div><div class="lbl">Last Seen</div></div>
-      </div>
-    </div>
-    <div class="card"><h3>Device Info</h3><table>
-      <tr><th>Device ID</th><td><code>${d.deviceId}</code></td></tr>
-      <tr><th>Type</th><td><span class="badge type">${d.deviceType}</span></td></tr>
-      ${d.ipAddress ? `<tr><th>IP Address</th><td><code>${d.ipAddress}</code></td></tr>` : ''}
-      <tr><th>Registered</th><td>${new Date(d.createdAt).toLocaleString()}</td></tr>
-    </table></div>
-    ${r ? buildSensorCard(r) : ''}
-    <div id="health-check-card-${d.deviceId}"></div>`;
+  clearHealthRefresh();
+  const slot = document.getElementById('tab-health');
+  if (!slot) return;
+  renderHealthOnce(d, slot);
 
-  // Fetch latest health-check packet asynchronously
-  api('GET', `/robot/${d.deviceId}/health/latest`).then(hc => {
-    if (!hc) return;
-    const slot = document.getElementById(`health-check-card-${d.deviceId}`);
-    if (!slot) return;
+  // Schedule auto-refresh based on healthRefreshSec setting
+  loadSettings().then(cfg => {
+    const sec = parseInt(cfg.healthRefreshSec ?? '30');
+    if (!isNaN(sec) && sec > 0) {
+      _healthRefreshTimer = setInterval(async () => {
+        const tab = document.getElementById('tab-health');
+        if (!tab || selected !== d.deviceId) { clearHealthRefresh(); return; }
+        try {
+          const fresh = await api('GET', `/robot/${d.deviceId}`);
+          renderHealthOnce(fresh, tab);
+        } catch { /* ignore network blip */ }
+      }, sec * 1000);
+    }
+  });
+}
+
+async function renderHealthOnce(d, slot) {
+  let hc = null;
+  try { hc = await api('GET', `/robot/${d.deviceId}/health/latest`); } catch {}
+
+  // Online if either heartbeat or health-check is recent
+  const cfg            = await loadSettings();
+  const refreshSec     = Math.max(parseInt(cfg.healthRefreshSec ?? '30') || 30, 30);
+  const freshWindowMs  = Math.max(90_000, refreshSec * 2_000);
+  const heartbeatMs    = d.lastSeen ? new Date(d.lastSeen).getTime() : 0;
+  const lastHealthMs   = hc?.createdAt ? new Date(hc.createdAt).getTime() : 0;
+  const newestMs       = Math.max(heartbeatMs, lastHealthMs);
+  const online         = newestMs > 0 && (Date.now() - newestMs) < freshWindowMs;
+  const lastSeenLabel  = newestMs > 0 ? ago(new Date(newestMs).toISOString()) : '—';
+
+  const r = (d.readings||[])[0];
+
+  let healthCard = '';
+  if (hc) {
     const statusColor = hc.status === 'Online' ? 'var(--green)' :
                         hc.status === 'Error'  ? 'var(--red)'   : 'var(--muted)';
     const compRows = (hc.components || []).map(c =>
@@ -1533,7 +1572,7 @@ function renderHealth(d) {
         c.status === 'Healthy' ? 'var(--green)' : c.status === 'Error' ? 'var(--red)' : 'var(--muted)'
       }">${c.status}</span></td></tr>`
     ).join('');
-    slot.innerHTML = `
+    healthCard = `
       <div class="card"><h3>Health Check — ${ago(hc.createdAt)}</h3>
         <table>
           <tr><th>Status</th><td><span style="color:${statusColor};font-weight:600">${hc.status}</span></td></tr>
@@ -1545,7 +1584,24 @@ function renderHealth(d) {
           <tbody>${compRows}</tbody>
         </table>` : ''}
       </div>`;
-  }).catch(() => {});
+  }
+
+  slot.innerHTML = `
+    <div class="card"><h3>Status</h3>
+      <div class="health-grid">
+        <div class="stat"><div class="val" style="color:${online?'var(--green)':'var(--red)'}">${online?'ONLINE':'OFFLINE'}</div><div class="lbl">Status</div></div>
+        <div class="stat"><div class="val">${d.firmwareVersion}</div><div class="lbl">Firmware</div></div>
+        <div class="stat"><div class="val" style="font-size:1rem">${lastSeenLabel}</div><div class="lbl">Last Seen</div></div>
+      </div>
+    </div>
+    <div class="card"><h3>Device Info</h3><table>
+      <tr><th>Device ID</th><td><code>${d.deviceId}</code></td></tr>
+      <tr><th>Type</th><td><span class="badge type">${d.deviceType}</span></td></tr>
+      ${d.ipAddress ? `<tr><th>IP Address</th><td><code>${d.ipAddress}</code></td></tr>` : ''}
+      <tr><th>Registered</th><td>${new Date(d.createdAt).toLocaleString()}</td></tr>
+    </table></div>
+    ${r ? buildSensorCard(r) : ''}
+    ${healthCard}`;
 }
 
 // ── Tab: Config ────────────────────────────────────────────────────────────
@@ -1708,8 +1764,9 @@ async function openSettings() {
     _settingsCache = cfg;
     document.getElementById('set-pocket-url').value  = cfg.pocketUrl   || '';
     document.getElementById('set-pocket-key').value  = cfg.pocketToken || '';
-    document.getElementById('set-log-ttl').value     = cfg.logTtlDays    ?? '30';
-    document.getElementById('set-health-ttl').value  = cfg.healthTtlDays ?? '7';
+    document.getElementById('set-log-ttl').value        = cfg.logTtlDays       ?? '30';
+    document.getElementById('set-health-ttl').value     = cfg.healthTtlDays    ?? '7';
+    document.getElementById('set-health-refresh').value = cfg.healthRefreshSec ?? '30';
   } catch(e) { toast('Failed to load settings: ' + e.message, false); }
 }
 
@@ -1731,7 +1788,21 @@ async function saveHealthRetention() {
   if (isNaN(ttl) || ttl < 0) { toast('Enter a valid number of days (0 = disabled)', false); return; }
   try {
     await api('PUT', '/settings', { healthTtlDays: String(ttl) });
+    _settingsCache = { ...(_settingsCache||{}), healthTtlDays: String(ttl) };
     toast('Health-check retention saved');
+  } catch(e) {
+    toast('Failed to save: ' + e.message, false);
+  }
+}
+
+async function saveHealthRefresh() {
+  const sec = document.getElementById('set-health-refresh').value.trim();
+  const n   = parseInt(sec);
+  if (isNaN(n) || n < 0) { toast('Enter a valid interval in seconds (0 = disabled)', false); return; }
+  try {
+    await api('PUT', '/settings', { healthRefreshSec: String(n) });
+    _settingsCache = { ...(_settingsCache||{}), healthRefreshSec: String(n) };
+    toast('Health page refresh saved');
   } catch(e) {
     toast('Failed to save: ' + e.message, false);
   }

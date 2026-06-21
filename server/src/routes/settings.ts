@@ -2,10 +2,11 @@ import { FastifyInstance } from 'fastify';
 import { db } from '../db';
 
 const DEFAULTS: Record<string, string> = {
-    logTtlDays:    '30',
-    healthTtlDays: '7',
-    pocketUrl:     'http://192.168.0.107:30600',
-    pocketToken:   '',
+    logTtlDays:      '30',
+    healthTtlDays:   '7',
+    healthRefreshSec: '30',
+    pocketUrl:       'http://192.168.0.107:30600',
+    pocketToken:     '',
 };
 
 export async function getSetting(key: string): Promise<string> {

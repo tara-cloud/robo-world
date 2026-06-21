@@ -108,7 +108,8 @@ export async function deviceRoutes(app: FastifyInstance) {
             await new Promise(r => setTimeout(r, 500));
 
             // Publish retained so device receives it even if it subscribes after this
-            const topic = `${proj.projectId}.${deviceName}.${proj.configTopic}`;
+            // Topic suffix is fixed to `.config` — config4h subscribes to `{projectId}.{deviceName}.config`
+            const topic = `${proj.projectId}.${deviceName}.config`;
             const payload = JSON.stringify({
                 ...configToSend,
                 projectID:   proj.projectId,
