@@ -343,9 +343,6 @@
     <div id="proj-nav-body">
       <div class="nav-section">Devices</div>
       <div id="proj-devices-nav"></div>
-      <div style="padding:6px 14px">
-        <button class="btn btn-ghost btn-sm" style="width:100%" onclick="showAssignDevice(currentProjId)">+ Assign Device</button>
-      </div>
       <div class="nav-section" style="margin-top:8px">Project</div>
       <div class="nav-item" id="nav-item-details" onclick="openProjectInfo()">
         <span>⚙</span><span class="ni-name">Details</span>
@@ -458,6 +455,7 @@ async function loadAll() {
 // ── Home view ──────────────────────────────────────────────────────────────
 function goHome() {
   clearHealthRefresh();
+  clearLogAutoRefresh();
   currentProjId = null;
   selectedProj  = null;
   selected      = null;
@@ -618,13 +616,17 @@ function setNavActive(id) {
 
 function openProjectLogs(projId) {
   if (!projId) return;
+  clearLogAutoRefresh();
   setNavActive('nav-item-logs');
   selected = null;
   const detail = document.getElementById('detail');
   detail.className = '';
   detail.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:5">
-      <div style="font-size:.9rem;font-weight:600">📋 Logs</div>
+      <div style="font-size:.9rem;font-weight:600;display:flex;align-items:center;gap:8px">
+        📋 Logs
+        <span id="log-auto-status-${projId}" style="font-size:.68rem;color:var(--muted);font-weight:400"></span>
+      </div>
       <div style="display:flex;gap:6px;align-items:center">
         <select id="log-filter-level-${projId}" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:4px 8px;font-size:.75rem"
           onchange="renderLogsTable('${projId}')">
@@ -638,6 +640,10 @@ function openProjectLogs(projId) {
           oninput="renderLogsTable('${projId}')" />
         <input id="log-filter-search-${projId}" placeholder="Search message…" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:4px 8px;font-size:.75rem;width:160px"
           oninput="renderLogsTable('${projId}')" />
+        <label style="display:flex;align-items:center;gap:4px;font-size:.72rem;color:var(--muted);cursor:pointer;user-select:none">
+          <input id="log-auto-${projId}" type="checkbox" checked onchange="toggleLogAutoRefresh('${projId}')" style="margin:0" />
+          Auto
+        </label>
         <button class="btn btn-ghost btn-sm" onclick="loadProjectLogs('${projId}')">↻ Refresh</button>
         <button class="btn btn-danger btn-sm" onclick="clearProjectLogs('${projId}')">Clear</button>
       </div>
@@ -646,10 +652,54 @@ function openProjectLogs(projId) {
       <p style="font-size:.78rem;color:var(--muted)">Loading…</p>
     </div>`;
 
-  loadProjectLogs(projId);
+  loadProjectLogs(projId).then(() => startLogAutoRefresh(projId));
 }
 
 let _logCache = {};  // projId → log entries
+let _logAutoRefreshTimer = null;
+let _logAutoRefreshProj  = null;
+
+function clearLogAutoRefresh() {
+  if (_logAutoRefreshTimer) { clearInterval(_logAutoRefreshTimer); _logAutoRefreshTimer = null; }
+  _logAutoRefreshProj = null;
+}
+
+function startLogAutoRefresh(projId) {
+  clearLogAutoRefresh();
+  _logAutoRefreshProj = projId;
+  const statusEl = document.getElementById(`log-auto-status-${projId}`);
+  if (statusEl) statusEl.textContent = '· auto-refresh on';
+  _logAutoRefreshTimer = setInterval(() => pollProjectLogs(projId), 5000);
+}
+
+function toggleLogAutoRefresh(projId) {
+  const el = document.getElementById(`log-auto-${projId}`);
+  if (el?.checked) startLogAutoRefresh(projId);
+  else {
+    clearLogAutoRefresh();
+    const statusEl = document.getElementById(`log-auto-status-${projId}`);
+    if (statusEl) statusEl.textContent = '· auto-refresh off';
+  }
+}
+
+async function pollProjectLogs(projId) {
+  // Stop if user navigated away from this logs view
+  if (_logAutoRefreshProj !== projId || !document.getElementById(`log-view-${projId}`)) {
+    clearLogAutoRefresh();
+    return;
+  }
+  try {
+    const logs = await api('GET', `/projects/${projId}/logs?limit=500`);
+    const prev = _logCache[projId] || [];
+    // Only re-render if newest log is newer (or count changed)
+    const newestPrev = prev[0]?.createdAt || '';
+    const newestNew  = logs[0]?.createdAt || '';
+    if (newestNew !== newestPrev || logs.length !== prev.length) {
+      _logCache[projId] = logs;
+      renderLogsTable(projId);
+    }
+  } catch { /* ignore network blip */ }
+}
 
 async function loadProjectLogs(projId) {
   try {
@@ -1475,6 +1525,7 @@ async function unassignDevice(projId, deviceId) {
 // ── Device detail ─────────────────────────────────────────────────────────
 async function selectDevice(id) {
   clearHealthRefresh();
+  clearLogAutoRefresh();
   selected = id;
   // Refresh nav active state
   if (currentProjId) {
