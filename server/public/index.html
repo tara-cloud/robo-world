@@ -554,6 +554,7 @@ function openProjectInfo(proj) {
           <code style="font-size:.72rem;color:var(--muted)">ID: ${proj.projectId}</code>
         </div>
         <button class="btn btn-ghost btn-sm" onclick="showEditProject('${proj.id}','${proj.name}','${proj.description||''}')">Edit</button>
+        <button class="btn btn-danger btn-sm" style="margin-left:8px" onclick="deleteProject('${proj.id}','${proj.name}')">Delete</button>
       </div>
 
       <div class="tree">
@@ -1468,6 +1469,15 @@ function removeRule(svcId, idx) {
   state.rules.splice(idx, 1);
   saveServiceState(svcId, state);
   renderServiceDetail(svcId, state);
+}
+
+async function deleteProject(id, name) {
+  if (!confirm(`Delete project "${name}"?\n\nAll devices will be unassigned. Services will be deleted.`)) return;
+  try {
+    await api('DELETE', `/projects/${id}`);
+    toast('Project deleted');
+    goHome();
+  } catch(e) { toast(`Error: ${e.message}`, false); }
 }
 
 async function deleteService(projId, sid) {
