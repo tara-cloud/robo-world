@@ -6,6 +6,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.1.0] — 2026-06-25
+
+### Added
+
+- Delete project button in the project Details view (next to Edit)
+- `deleteProject()` function in dashboard UI — confirms, calls
+  `DELETE /projects/:id`, shows toast, navigates home on success
+  (backend endpoint already existed: unassigns devices, cascades services)
+
+---
+
 ## [1.0.1] — 2026-06-25
 
 ### Fixed
