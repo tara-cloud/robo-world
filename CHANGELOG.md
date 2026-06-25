@@ -6,6 +6,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.0.1] — 2026-06-25
+
+### Fixed
+
+- `helm/deployment.yaml`: mosquitto service changed from `ClusterIP` to
+  `NodePort 30183` so ESP32 devices can reach the broker from outside the cluster
+- `server/src/mqtt.ts`: fall back to `MQTT_HOST` env var when `MQTT_URL` is
+  not set — fixes `ECONNREFUSED` when pod is deployed with `MQTT_HOST` only
+
+---
+
 ## [1.0.0] — 2026-06-17
 
 ### Added
