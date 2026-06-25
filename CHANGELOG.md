@@ -6,6 +6,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.1.5] — 2026-06-26
+
+### Fixed
+
+- `release.yml`: delete existing deployments before `helm upgrade --install`
+  so Helm recreates them cleanly — fixes "may not be specified when value is
+  not empty" when existing deployments have `DATABASE_URL` as a plain `value`
+  conflicting with the chart's `valueFrom`
+
+---
+
 ## [1.1.4] — 2026-06-26
 
 ### Fixed
