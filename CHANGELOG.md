@@ -6,6 +6,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.1.4] — 2026-06-26
+
+### Fixed
+
+- `release.yml`: removed `--reuse-values` from `helm upgrade --install` —
+  causes "may not be specified when value is not empty" error on fresh install
+  because there are no prior release values to reuse; chart defaults are
+  sufficient
+
+---
+
 ## [1.1.3] — 2026-06-25
 
 ### Fixed

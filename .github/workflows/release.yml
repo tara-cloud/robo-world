@@ -149,7 +149,6 @@ jobs:
           helm upgrade --install robo-world ./helm/robo-world \
             --namespace robo-world \
             --create-namespace \
-            --reuse-values \
             --set image.tag=${{ needs.release.outputs.version }} \
             --wait \
             --timeout 5m
