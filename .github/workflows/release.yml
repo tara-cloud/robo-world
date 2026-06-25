@@ -126,6 +126,15 @@ jobs:
             pg_dump -U robo_user robo_world \
             > /DATA/AppData/robo-world/backups/pre-deploy-$(date +%Y%m%d-%H%M%S).sql || true
 
+      - name: Adopt namespace for Helm
+        run: |
+          kubectl create namespace robo-world --dry-run=client -o yaml | kubectl apply -f -
+          kubectl label namespace robo-world app.kubernetes.io/managed-by=Helm --overwrite
+          kubectl annotate namespace robo-world \
+            meta.helm.sh/release-name=robo-world \
+            meta.helm.sh/release-namespace=robo-world \
+            --overwrite
+
       - name: Helm upgrade
         run: |
           helm upgrade --install robo-world ./helm/robo-world \

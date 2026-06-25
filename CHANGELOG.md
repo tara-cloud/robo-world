@@ -6,6 +6,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.1.2] — 2026-06-25
+
+### Fixed
+
+- `release.yml`: add "Adopt namespace for Helm" step before `helm upgrade`
+  — labels and annotates the existing `robo-world` namespace so Helm can
+  manage it (fixes "invalid ownership metadata" error on first CI deploy)
+
+---
+
 ## [1.1.1] — 2026-06-25
 
 ### Fixed
