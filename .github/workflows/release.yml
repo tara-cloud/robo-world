@@ -121,7 +121,7 @@ jobs:
 
       - name: Backup database
         run: |
-          mkdir -p /DATA/AppData/robo-world/backups
+          sudo mkdir -p /DATA/AppData/robo-world/backups
           kubectl exec -n robo-world deploy/robo-world-postgres -- \
             pg_dump -U robo_user robo_world \
             > /DATA/AppData/robo-world/backups/pre-deploy-$(date +%Y%m%d-%H%M%S).sql || true
