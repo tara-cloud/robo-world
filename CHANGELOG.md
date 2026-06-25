@@ -10,10 +10,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- `helm/robo-world/templates/deployment.yaml`: mosquitto service changed from
-  `ClusterIP` to `NodePort` so ESP32 devices can reach the broker from outside
-  the cluster
-- `helm/robo-world/values.yaml`: added `mosquitto.nodePort: 30183`
+- `helm/deployment.yaml`: mosquitto service changed from `ClusterIP` to
+  `NodePort 30183` so ESP32 devices can reach the broker from outside the cluster
+- `server/src/mqtt.ts`: fall back to `MQTT_HOST` env var when `MQTT_URL` is
+  not set — fixes `ECONNREFUSED` when pod is deployed with `MQTT_HOST` only
 
 ---
 

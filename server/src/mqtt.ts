@@ -12,7 +12,8 @@ export function getMqtt(): MqttClient {
 }
 
 export function initMqtt() {
-    const url = process.env.MQTT_URL ?? 'mqtt://localhost:1883';
+    const url = process.env.MQTT_URL
+        ?? (process.env.MQTT_HOST ? `mqtt://${process.env.MQTT_HOST}:1883` : 'mqtt://localhost:1883');
     client = mqtt.connect(url, { clientId: 'robo-world' });
 
     client.on('connect', () => {
