@@ -128,8 +128,9 @@ jobs:
 
       - name: Helm upgrade
         run: |
-          helm upgrade robo-world ./helm/robo-world \
+          helm upgrade --install robo-world ./helm/robo-world \
             --namespace robo-world \
+            --create-namespace \
             --reuse-values \
             --set image.tag=${{ needs.release.outputs.version }} \
             --wait \

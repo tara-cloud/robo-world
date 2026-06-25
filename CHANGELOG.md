@@ -6,6 +6,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.1.1] — 2026-06-25
+
+### Fixed
+
+- `release.yml`: add `--install` and `--create-namespace` to `helm upgrade`
+  so it works on first deploy when no prior Helm release exists
+  (was failing with "has no deployed releases")
+
+---
+
 ## [1.1.0] — 2026-06-25
 
 ### Added
