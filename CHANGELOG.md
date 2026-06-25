@@ -6,6 +6,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.1.3] — 2026-06-25
+
+### Fixed
+
+- `release.yml`: extend namespace adoption step to label and annotate all
+  existing resources (deployments, services, configmaps, secrets, pvcs) so
+  Helm can import them — fixes "invalid ownership metadata" on all resource
+  types, not just the namespace
+
+---
+
 ## [1.1.2] — 2026-06-25
 
 ### Fixed

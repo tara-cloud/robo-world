@@ -134,6 +134,15 @@ jobs:
             meta.helm.sh/release-name=robo-world \
             meta.helm.sh/release-namespace=robo-world \
             --overwrite
+          for kind in deployment statefulset daemonset service configmap secret pvc; do
+            kubectl get $kind -n robo-world -o name 2>/dev/null | while read res; do
+              kubectl label $res -n robo-world app.kubernetes.io/managed-by=Helm --overwrite 2>/dev/null || true
+              kubectl annotate $res -n robo-world \
+                meta.helm.sh/release-name=robo-world \
+                meta.helm.sh/release-namespace=robo-world \
+                --overwrite 2>/dev/null || true
+            done
+          done
 
       - name: Helm upgrade
         run: |
