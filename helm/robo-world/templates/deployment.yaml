@@ -108,9 +108,11 @@ metadata:
 spec:
   selector:
     app: robo-world-mosquitto
+  type: NodePort
   ports:
     - port: 1883
       targetPort: 1883
+      nodePort: {{ .Values.mosquitto.nodePort }}
 ---
 # ── Electron Server ────────────────────────────────────────────────────────────
 apiVersion: apps/v1

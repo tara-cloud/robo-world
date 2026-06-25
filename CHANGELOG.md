@@ -6,6 +6,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.0.1] — 2026-06-25
+
+### Fixed
+
+- `helm/robo-world/templates/deployment.yaml`: mosquitto service changed from
+  `ClusterIP` to `NodePort` so ESP32 devices can reach the broker from outside
+  the cluster
+- `helm/robo-world/values.yaml`: added `mosquitto.nodePort: 30183`
+
+---
+
 ## [1.0.0] — 2026-06-17
 
 ### Added
