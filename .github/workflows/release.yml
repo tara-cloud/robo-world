@@ -144,6 +144,12 @@ jobs:
             done
           done
 
+      - name: Recreate deployments
+        run: |
+          kubectl delete deployment robo-world robo-world-postgres -n robo-world --ignore-not-found=true
+          kubectl wait --for=delete pod -l app=robo-world -n robo-world --timeout=60s 2>/dev/null || true
+          kubectl wait --for=delete pod -l app=robo-world-postgres -n robo-world --timeout=60s 2>/dev/null || true
+
       - name: Helm upgrade
         run: |
           helm upgrade --install robo-world ./helm/robo-world \
