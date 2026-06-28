@@ -11,6 +11,7 @@ import { faceRoutes, seedFaces } from './routes/face';
 import { projectRoutes } from './routes/project';
 import { settingsRoutes, getSetting } from './routes/settings';
 import { initMqtt } from './mqtt';
+import { initSocket } from './socket';
 import { db } from './db';
 
 const app = Fastify({ logger: true });
@@ -42,6 +43,7 @@ app.register(settingsRoutes, { prefix: '/settings' });
 app.get('/health', async () => ({ status: 'ok', service: 'robo-world' }));
 
 initMqtt();
+initSocket();
 seedFaces();
 
 async function pruneOldData() {
