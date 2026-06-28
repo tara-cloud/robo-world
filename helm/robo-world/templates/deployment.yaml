@@ -56,65 +56,7 @@ spec:
     - port: 5432
       targetPort: 5432
 ---
-# ── Mosquitto MQTT broker ─────────────────────────────────────────────────────
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: robo-world-mosquitto
-  namespace: robo-world
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: robo-world-mosquitto
-  template:
-    metadata:
-      labels:
-        app: robo-world-mosquitto
-    spec:
-      containers:
-        - name: mosquitto
-          image: {{ .Values.mosquitto.image }}
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 1883
-              hostPort: {{ .Values.mosquitto.hostPort }}
-          volumeMounts:
-            - name: mosquitto-config
-              mountPath: /mosquitto/config/mosquitto.conf
-              subPath: mosquitto.conf
-      volumes:
-        - name: mosquitto-config
-          configMap:
-            name: robo-world-mosquitto-config
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: robo-world-mosquitto-config
-  namespace: robo-world
-data:
-  mosquitto.conf: |
-    listener 1883
-    allow_anonymous true
-    persistence false
-    log_type error
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: robo-world-mosquitto
-  namespace: robo-world
-spec:
-  selector:
-    app: robo-world-mosquitto
-  type: NodePort
-  ports:
-    - port: 1883
-      targetPort: 1883
-      nodePort: {{ .Values.mosquitto.nodePort }}
----
-# ── Electron Server ────────────────────────────────────────────────────────────
+# ── Robo World Server ─────────────────────────────────────────────────────────
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -142,13 +84,17 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - containerPort: 4000
+            - name: http
+              containerPort: 4000
               hostPort: {{ .Values.service.nodePort }}
+            - name: socket
+              containerPort: {{ .Values.socket.port }}
+              hostPort: {{ .Values.socket.hostPort }}
           env:
             - name: PORT
               value: "4000"
-            - name: MQTT_URL
-              value: "mqtt://robo-world-mosquitto:1883"
+            - name: SOCKET_PORT
+              value: {{ .Values.socket.port | quote }}
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

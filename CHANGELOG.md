@@ -6,6 +6,25 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.0] — 2026-06-28
+
+### Added
+
+- `server/src/socket.ts`: TCP server on port 3001; handles `register`,
+  `heartbeat`, `health`, `log`, `sensor` from devices; pushes `config`,
+  `display`, `emotion`, `speech`, `ota` back on same socket
+- `server/src/index.ts`: calls `initSocket()` on startup
+
+### Changed
+
+- **Breaking:** Mosquitto MQTT broker removed from deployment
+- `helm/robo-world/templates/deployment.yaml`: removed mosquitto deployment,
+  service, and ConfigMap; added `socket` port (3001) as `hostPort` on app container
+- `helm/robo-world/values.yaml`: replaced `mosquitto` section with `socket`
+  (port + hostPort); removed `MQTT_URL` env var
+
+---
+
 ## [1.1.5] — 2026-06-26
 
 ### Fixed

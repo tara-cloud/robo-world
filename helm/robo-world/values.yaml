@@ -12,11 +12,10 @@ service:
   port: 4000
   nodePort: 30400
 
-# MQTT (Mosquitto) — devices connect via NodePort 30183
-mosquitto:
-  image: eclipse-mosquitto:2
-  hostPort: 1883
-  nodePort: 30183
+# TCP socket — devices connect directly on socketPort
+socket:
+  port: 3001
+  hostPort: 3001
 
 # PostgreSQL
 postgres:
