@@ -458,6 +458,7 @@ function goHome() {
   clearLogAutoRefresh();
   currentProjId = null;
   selectedProj  = null;
+  history.pushState({}, '', '/');
   selected      = null;
   document.getElementById('view-home').style.display     = '';
   document.getElementById('view-project').style.display  = 'none';
@@ -495,6 +496,7 @@ async function openProject(id) {
   currentProjId = id;
   selectedProj  = id;
   selected      = null;
+  history.pushState({ projectId: id }, '', `/project/${id}`);
 
   const proj = await api('GET', `/projects/${id}`);
 
@@ -1592,20 +1594,15 @@ function renderHealth(d) {
   if (!slot) return;
   renderHealthOnce(d, slot);
 
-  // Schedule auto-refresh based on healthRefreshSec setting
-  loadSettings().then(cfg => {
-    const sec = parseInt(cfg.healthRefreshSec ?? '30');
-    if (!isNaN(sec) && sec > 0) {
-      _healthRefreshTimer = setInterval(async () => {
-        const tab = document.getElementById('tab-health');
-        if (!tab || selected !== d.deviceId) { clearHealthRefresh(); return; }
-        try {
-          const fresh = await api('GET', `/robot/${d.deviceId}`);
-          renderHealthOnce(fresh, tab);
-        } catch { /* ignore network blip */ }
-      }, sec * 1000);
-    }
-  });
+  // Auto-refresh health tab every 10s
+  _healthRefreshTimer = setInterval(async () => {
+    const tab = document.getElementById('tab-health');
+    if (!tab || selected !== d.deviceId) { clearHealthRefresh(); return; }
+    try {
+      const fresh = await api('GET', `/robot/${d.deviceId}`);
+      renderHealthOnce(fresh, tab);
+    } catch { /* ignore network blip */ }
+  }, 10000);
 }
 
 async function renderHealthOnce(d, slot) {

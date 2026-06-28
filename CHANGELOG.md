@@ -6,6 +6,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.1] — 2026-06-29
+
+### Fixed
+
+- `server/src/routes/robot.ts`: all routes now use `pushToDevice()` (TCP socket)
+  instead of `publishToRobot()` / `getMqtt().publish()` — config, display,
+  emotion, speech, OTA, actuator, device-config, ota-broadcast, ota-push,
+  ota-check-push all work over socket now
+- Removed `publishToRobot` and `getMqtt` imports from robot.ts
+- Updated `deviceType` filter from `'robot'` to `'tara-robo'`
+- OTA broadcast and ota-check-push updated to use socket `pushToDevice()`
+
+---
+
 ## [2.0.0] — 2026-06-28
 
 ### Added
