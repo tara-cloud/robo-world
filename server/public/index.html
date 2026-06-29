@@ -496,9 +496,9 @@ async function openProject(id) {
   currentProjId = id;
   selectedProj  = id;
   selected      = null;
-  history.pushState({ projectId: id }, '', `/project/${id}`);
 
   const proj = await api('GET', `/projects/${id}`);
+  history.pushState({ projDbId: id, projSlug: proj.projectId }, '', `/project/${proj.projectId}`);
 
   // Switch views
   document.getElementById('view-home').style.display    = 'none';
@@ -622,6 +622,9 @@ function openProjectLogs(projId) {
   clearLogAutoRefresh();
   setNavActive('nav-item-logs');
   selected = null;
+  // Update URL using projectId slug
+  const proj = projects.find(p => p.id === projId);
+  if (proj) history.pushState({ projDbId: projId, projSlug: proj.projectId }, '', `/project/${proj.projectId}/logs`);
   const detail = document.getElementById('detail');
   detail.className = '';
   detail.innerHTML = `
@@ -1539,9 +1542,10 @@ async function selectDevice(id) {
   clearHealthRefresh();
   clearLogAutoRefresh();
   selected = id;
-  // Refresh nav active state
+  // Update URL
   if (currentProjId) {
     const proj = await api('GET', `/projects/${currentProjId}`);
+    history.pushState({ projDbId: currentProjId, projSlug: proj.projectId, deviceId: id }, '', `/project/${proj.projectId}/device/${id}`);
     renderNavDevices(proj);
   }
 
@@ -1553,11 +1557,13 @@ async function selectDevice(id) {
       <div class="tab" onclick="switchTab('config')">Config</div>
       <div class="tab" onclick="switchTab('firmware')">Firmware</div>
       <div class="tab" onclick="switchTab('components')">Components</div>
+      <div class="tab" onclick="switchTab('hwtest')">HW Test</div>
     </div>
     <div id="tab-health"     class="tab-content active"></div>
     <div id="tab-config"     class="tab-content"></div>
     <div id="tab-firmware"   class="tab-content"></div>
     <div id="tab-components" class="tab-content"></div>
+    <div id="tab-hwtest"     class="tab-content"></div>
   `;
 
   const [d, pins] = await Promise.all([
@@ -1573,10 +1579,11 @@ async function selectDevice(id) {
 }
 
 function switchTab(name) {
-  const names = ['health','config','firmware','components'];
+  const names = ['health','config','firmware','components','hwtest'];
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', names[i]===name));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
+  if (name === 'hwtest' && selected) renderHwTest(selected);
 }
 
 // ── Tab: Health ────────────────────────────────────────────────────────────
@@ -2263,8 +2270,126 @@ async function pollPinState() {
   } catch { /* offline */ }
 }
 
+// ── Tab: Hardware Test ────────────────────────────────────────────────────
+function renderHwTest(deviceId) {
+  const slot = document.getElementById('tab-hwtest');
+  if (!slot) return;
+  slot.innerHTML = `
+    <div style="padding:20px;max-width:520px">
+      <h3 style="margin-bottom:12px">Display Image</h3>
+      <div id="hwt-drop" style="border:2px dashed var(--border);border-radius:8px;padding:32px;text-align:center;cursor:pointer;color:var(--muted);margin-bottom:12px"
+           onclick="document.getElementById('hwt-file').click()"
+           ondragover="event.preventDefault()"
+           ondrop="hwtDrop(event,'${deviceId}')">
+        Drop image here or click to upload (PNG / JPG / BMP)
+        <input type="file" id="hwt-file" accept="image/*" style="display:none" onchange="hwtLoad(this,'${deviceId}')">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <label>Width <input id="hwt-w" type="number" value="160" min="1" max="320" style="width:64px;margin-left:4px"></label>
+        <label>Height <input id="hwt-h" type="number" value="120" min="1" max="240" style="width:64px;margin-left:4px"></label>
+        <button class="btn btn-ghost btn-sm" onclick="hwtApplySize('${deviceId}')">Apply</button>
+      </div>
+      <canvas id="hwt-canvas" width="160" height="120" style="border:1px solid var(--border);display:block;margin-bottom:12px;max-width:100%"></canvas>
+      <button class="btn btn-primary btn-sm" id="hwt-send" disabled onclick="hwtSend('${deviceId}')">Send to Display</button>
+      <div id="hwt-status" style="font-size:.8rem;color:var(--muted);margin-top:6px"></div>
+    </div>`;
+}
+
+let _hwtImg = null;
+
+function hwtDrop(e, deviceId) {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file) hwtLoadFile(file, deviceId);
+}
+function hwtLoad(input, deviceId) {
+  if (input.files[0]) hwtLoadFile(input.files[0], deviceId);
+}
+function hwtLoadFile(file, deviceId) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => { _hwtImg = img; hwtDraw(deviceId); };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function hwtApplySize(deviceId) { hwtDraw(deviceId); }
+function hwtDraw(deviceId) {
+  if (!_hwtImg) return;
+  const w = parseInt(document.getElementById('hwt-w').value) || 160;
+  const h = parseInt(document.getElementById('hwt-h').value) || 120;
+  const canvas = document.getElementById('hwt-canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.style.width  = Math.min(w, 320) + 'px';
+  canvas.style.height = Math.min(h, 240) + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(_hwtImg, 0, 0, w, h);
+  document.getElementById('hwt-send').disabled = false;
+  document.getElementById('hwt-status').textContent = `Ready — ${w}×${h} px`;
+}
+async function hwtSend(deviceId) {
+  const canvas = document.getElementById('hwt-canvas');
+  const w = canvas.width, h = canvas.height;
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, w, h).data; // RGBA
+  const bytes = new Uint8Array(w * h * 2);
+  for (let i = 0; i < w * h; i++) {
+    const r = imgData[i * 4], g = imgData[i * 4 + 1], b = imgData[i * 4 + 2];
+    const rgb565 = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+    bytes[i * 2]     = (rgb565 >> 8) & 0xff; // big-endian
+    bytes[i * 2 + 1] = rgb565 & 0xff;
+  }
+  // Base64 encode
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  const data = btoa(bin);
+  const status = document.getElementById('hwt-status');
+  status.textContent = 'Sending…';
+  try {
+    await api('POST', `/robot/${deviceId}/display-raw`, { data, width: w, height: h });
+    status.textContent = `Sent ${w}×${h} (${bytes.length} bytes)`;
+  } catch(e) {
+    status.textContent = `Error: ${e.message}`;
+  }
+}
+
+// ── Routing helpers ────────────────────────────────────────────────────────
+async function restoreFromPath() {
+  const path = location.pathname;
+  // /project/:slug/device/:deviceId
+  const devMatch = path.match(/^\/project\/([^/]+)\/device\/([^/]+)/);
+  if (devMatch) {
+    const [, slug, deviceId] = devMatch;
+    await loadAll();
+    const proj = projects.find(p => p.projectId === slug);
+    if (proj) { await openProject(proj.id); await selectDevice(deviceId); }
+    return;
+  }
+  // /project/:slug/logs
+  const logsMatch = path.match(/^\/project\/([^/]+)\/logs/);
+  if (logsMatch) {
+    await loadAll();
+    const proj = projects.find(p => p.projectId === logsMatch[1]);
+    if (proj) { await openProject(proj.id); openProjectLogs(proj.id); }
+    return;
+  }
+  // /project/:slug
+  const projMatch = path.match(/^\/project\/([^/]+)/);
+  if (projMatch) {
+    await loadAll();
+    const proj = projects.find(p => p.projectId === projMatch[1]);
+    if (proj) await openProject(proj.id);
+    return;
+  }
+  // Default: home
+  await loadAll();
+}
+
+window.addEventListener('popstate', () => restoreFromPath());
+
 // ── Init ───────────────────────────────────────────────────────────────────
-loadAll();
+restoreFromPath();
 setInterval(loadAll, 30000);
 setInterval(pollPinState, 3000);
 </script>

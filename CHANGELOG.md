@@ -6,6 +6,27 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.1.0] — 2026-06-29
+
+### Added
+
+- `server/src/index.ts`: SPA catch-all `setNotFoundHandler` → serves `index.html`
+  for client-side routes; fixes 404 on browser refresh
+- `server/public/index.html`: deeper URL routing — `/project/:slug`,
+  `/project/:slug/device/:deviceId`, `/project/:slug/logs`
+- `server/public/index.html`: `popstate` listener + `restoreFromPath()` for
+  browser back/forward support
+- `server/public/index.html`: **Hardware Test tab** on device view — upload
+  image, set width/height, preview on canvas, convert to RGB565, send to device
+- `server/src/routes/robot.ts`: `POST /robot/:deviceId/display-raw` — receives
+  base64 RGB565 + dimensions, pushes `display-raw` message to device via socket
+
+### Fixed
+
+- `openProject()` now uses `proj.projectId` (slug) in URL instead of internal DB id
+
+---
+
 ## [2.0.1] — 2026-06-29
 
 ### Fixed
