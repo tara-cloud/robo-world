@@ -2337,18 +2337,24 @@ async function hwtSend(deviceId) {
   for (let i = 0; i < w * h; i++) {
     const r = imgData[i * 4], g = imgData[i * 4 + 1], b = imgData[i * 4 + 2];
     const rgb565 = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
-    bytes[i * 2]     = (rgb565 >> 8) & 0xff; // big-endian
+    bytes[i * 2]     = (rgb565 >> 8) & 0xff;
     bytes[i * 2 + 1] = rgb565 & 0xff;
   }
-  // Base64 encode
-  let bin = '';
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-  const data = btoa(bin);
+  // Split into 2048-byte raw chunks (~2732 base64 chars) — stays within ArduinoJson limit
+  const CHUNK = 2048;
+  const totalChunks = Math.ceil(bytes.length / CHUNK);
   const status = document.getElementById('hwt-status');
-  status.textContent = 'Sending…';
+  status.textContent = `Sending 0/${totalChunks} chunks…`;
   try {
-    await api('POST', `/robot/${deviceId}/display-raw`, { data, width: w, height: h });
-    status.textContent = `Sent ${w}×${h} (${bytes.length} bytes)`;
+    await api('POST', `/robot/${deviceId}/display-raw`, { width: w, height: h, chunks: totalChunks });
+    for (let i = 0; i < totalChunks; i++) {
+      const slice = bytes.slice(i * CHUNK, (i + 1) * CHUNK);
+      let bin = '';
+      for (let j = 0; j < slice.length; j++) bin += String.fromCharCode(slice[j]);
+      await api('POST', `/robot/${deviceId}/display-raw-chunk`, { index: i, data: btoa(bin) });
+      status.textContent = `Sending ${i + 1}/${totalChunks} chunks…`;
+    }
+    status.textContent = `Sent ${w}×${h} (${bytes.length} bytes, ${totalChunks} chunks)`;
   } catch(e) {
     status.textContent = `Error: ${e.message}`;
   }
