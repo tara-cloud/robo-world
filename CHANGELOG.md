@@ -6,6 +6,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.1.1] — 2026-06-29
+
+### Fixed
+
+- `server/public/index.html`: `hwtSend()` reverted to chunked protocol —
+  splits RGB565 into 2048-byte chunks and sends `display-raw` (start) +
+  `display-raw-chunk` (data) separately; was accidentally reverted to
+  single 51KB message which ArduinoJson cannot parse on ESP32
+- `server/src/routes/robot.ts`: `POST /display-raw` now sends
+  `display-raw-start` to device; added `POST /display-raw-chunk` route
+  that sends `display-raw-chunk` — matches firmware handlers
+
+---
+
 ## [2.1.0] — 2026-06-29
 
 ### Added
