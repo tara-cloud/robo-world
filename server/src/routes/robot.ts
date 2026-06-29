@@ -272,15 +272,27 @@ export async function robotRoutes(app: FastifyInstance) {
         return reply.code(200).send({ ok: true, payload });
     });
 
-    // POST /robot/:deviceId/display-raw — send raw RGB565 bitmap to device display
+    // POST /robot/:deviceId/display-raw — start chunked transfer (sends start message)
     app.post<{
         Params: { deviceId: string };
-        Body:   { data: string; width: number; height: number };
+        Body:   { width: number; height: number; chunks: number };
     }>('/:deviceId/display-raw', async (req, reply) => {
         const { deviceId } = req.params;
-        const { data, width, height } = req.body;
-        if (!data || !width || !height) return reply.code(400).send({ error: 'data, width and height required' });
-        const pushed = pushToDevice(deviceId, { type: 'display-raw', data, width, height });
+        const { width, height, chunks } = req.body;
+        if (!width || !height || !chunks) return reply.code(400).send({ error: 'width, height and chunks required' });
+        const pushed = pushToDevice(deviceId, { type: 'display-raw-start', width, height, chunks });
+        return reply.code(pushed ? 200 : 503).send({ ok: pushed });
+    });
+
+    // POST /robot/:deviceId/display-raw-chunk — send one chunk
+    app.post<{
+        Params: { deviceId: string };
+        Body:   { index: number; data: string };
+    }>('/:deviceId/display-raw-chunk', async (req, reply) => {
+        const { deviceId } = req.params;
+        const { index, data } = req.body;
+        if (index === undefined || !data) return reply.code(400).send({ error: 'index and data required' });
+        const pushed = pushToDevice(deviceId, { type: 'display-raw-chunk', index, data });
         return reply.code(pushed ? 200 : 503).send({ ok: pushed });
     });
 }
