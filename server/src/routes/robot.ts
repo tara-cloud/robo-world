@@ -271,4 +271,16 @@ export async function robotRoutes(app: FastifyInstance) {
         pushToDevice(device.deviceId, { type: 'config', ...payload });
         return reply.code(200).send({ ok: true, payload });
     });
+
+    // POST /robot/:deviceId/display-raw — send raw RGB565 bitmap to device display
+    app.post<{
+        Params: { deviceId: string };
+        Body:   { data: string; width: number; height: number };
+    }>('/:deviceId/display-raw', async (req, reply) => {
+        const { deviceId } = req.params;
+        const { data, width, height } = req.body;
+        if (!data || !width || !height) return reply.code(400).send({ error: 'data, width and height required' });
+        const pushed = pushToDevice(deviceId, { type: 'display-raw', data, width, height });
+        return reply.code(pushed ? 200 : 503).send({ ok: pushed });
+    });
 }

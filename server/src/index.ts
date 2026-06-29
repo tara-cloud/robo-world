@@ -42,6 +42,12 @@ app.register(settingsRoutes, { prefix: '/settings' });
 
 app.get('/health', async () => ({ status: 'ok', service: 'robo-world' }));
 
+// SPA catch-all: serve index.html for all client-side routes (project, device, logs)
+// API routes are already handled above and will never reach this handler.
+app.setNotFoundHandler((_req, reply) => {
+    reply.sendFile('index.html');
+});
+
 initMqtt();
 initSocket();
 seedFaces();
